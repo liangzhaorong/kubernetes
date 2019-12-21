@@ -35,12 +35,16 @@ type StateData interface {
 }
 
 // StateKey is the type of keys stored in CycleState.
+// StateKey 是保存在 CycleState 中的 key 的类型
 type StateKey string
 
 // CycleState provides a mechanism for plugins to store and retrieve arbitrary data.
 // StateData stored by one plugin can be read, altered, or deleted by another plugin.
 // CycleState does not provide any data protection, as all plugins are assumed to be
 // trusted.
+// CycleState 为 plugin 提供了一种存储和检索任意数据的机制。
+// 一个 plugin 存储的 StateData 可以被另一个插件读取，更改或删除。
+// CycleState 不提供任何数据保护，因为假定所有 plugins 都是可信任的。
 type CycleState struct {
 	mx      sync.RWMutex
 	storage map[StateKey]StateData
@@ -49,6 +53,7 @@ type CycleState struct {
 }
 
 // NewCycleState initializes a new CycleState and returns its pointer.
+// NewCycleState 初始化一个新的 CycleState 结构体，并返回指向该结构体的指针
 func NewCycleState() *CycleState {
 	return &CycleState{
 		storage: make(map[StateKey]StateData),

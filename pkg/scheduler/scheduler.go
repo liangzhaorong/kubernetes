@@ -78,6 +78,7 @@ type podPreemptor interface {
 
 // Scheduler watches for new unscheduled pods. It attempts to find
 // nodes that they fit on and writes bindings back to the api server.
+// Scheduler watch 新的未调度的 pod. 它尝试寻找合适的节点, 并将绑定写回到 kube-apiserver
 type Scheduler struct {
 	// It is expected that changes made via SchedulerCache will be observed
 	// by NodeLister and Algorithm.
@@ -93,6 +94,7 @@ type Scheduler struct {
 	// the preemptor pod.
 	podPreemptor podPreemptor
 	// Framework runs scheduler plugins at configured extension points.
+	// Framework 在配置的扩展点执行 scheduler plugins
 	Framework framework.Framework
 
 	// NextPod should be a function that blocks until the next pod
@@ -416,7 +418,9 @@ func initPolicyFromConfigMap(client clientset.Interface, policyRef *schedulerapi
 }
 
 // Run begins watching and scheduling. It waits for cache to be synced, then starts scheduling and blocked until the context is done.
+// Run 开始监听和调度. 它等待缓存被同步, 然后开始调度并阻塞直到 context 退出.
 func (sched *Scheduler) Run(ctx context.Context) {
+	// 在调度前等待 cache 同步
 	if !cache.WaitForCacheSync(ctx.Done(), sched.scheduledPodsHasSynced) {
 		return
 	}
@@ -587,11 +591,23 @@ func (sched *Scheduler) bind(ctx context.Context, assumed *v1.Pod, targetNode st
 }
 
 // scheduleOne does the entire scheduling workflow for a single pod.  It is serialized on the scheduling algorithm's host fitting.
+// 调度算法 Algorithm 大致如下：
+// 1. 通过 Informer Watch 到需要等待调度的 Pod 的数据，然后把它放到调度队列 schedulerQueue 中
+// 2. 通过调度的算法流程循环从队列中拿到数据，经过调度流水线 Schedule Pipeline 进行调度
+// 3. 调度流水线 Scheduler Pipeline 分三部分:
+//    - Schedule Thread
+//    - Wait Thread
+//    - Bind Thread
+// 在整个循环过程中会有一个串行化过程，即从调度队列 schedulerQueue 中拿到 Pod 数据后进入 Schedule Thread 这个
+// 流程中，通过 preFilter、Filter、postFilter、Score（打分）、Reserve（对账本做预占用）。这一系列基本调度流程结束
+// 后，会将这个任务提交给 Wait Thread 和 Bind Thread，然后不会等待，继续从调度队列中获取下一个 Pod 数据进行调度。
 func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	fwk := sched.Framework
 
+	// 从 schedulerQueue 中弹出一个 pod
 	podInfo := sched.NextPod()
 	// pod could be nil when schedulerQueue is closed
+	// 若 schedulerQueue 已 closed 时，pod 可能为 nil
 	if podInfo == nil || podInfo.Pod == nil {
 		return
 	}
@@ -605,11 +621,14 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	klog.V(3).Infof("Attempting to schedule pod: %v/%v", pod.Namespace, pod.Name)
 
 	// Synchronously attempt to find a fit for the pod.
+	// 同步的为 pod 查找适合的 node
 	start := time.Now()
 	state := framework.NewCycleState()
 	state.SetRecordFrameworkMetrics(rand.Intn(100) < frameworkMetricsSamplePercent)
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Schedule() 执行调度流水线中的 Schedule Thread 的主要流程
+	// 该函数执行的结果将会选出一个最合适的节点
 	scheduleResult, err := sched.Algorithm.Schedule(schedulingCycleCtx, state, pod)
 	if err != nil {
 		sched.recordSchedulingFailure(podInfo.DeepCopy(), err, v1.PodReasonUnschedulable, err.Error())
@@ -663,6 +682,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	}
 
 	// Run "reserve" plugins.
+	// Schedule Thread 之 reserve: 有状态的 plugin 可以对资源做内存记账
 	if sts := fwk.RunReservePlugins(schedulingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost); !sts.IsSuccess() {
 		sched.recordSchedulingFailure(assumedPodInfo, sts.AsError(), SchedulerError, sts.Message())
 		metrics.PodScheduleErrors.Inc()
@@ -683,6 +703,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		fwk.RunUnreservePlugins(schedulingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 		return
 	}
+	// 调度流水线 Schedule Pileline: Wait Thread 和 Bind Thread
 	// bind the pod to its host asynchronously (we can do this b/c of the assumption step above).
 	go func() {
 		bindingCycleCtx, cancel := context.WithCancel(ctx)
@@ -691,6 +712,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		defer metrics.SchedulerGoroutines.WithLabelValues("binding").Dec()
 
 		// Run "permit" plugins.
+		// Wait Thread 之 Permit: wait, deny, approve, 可以作为 gang 的插入点
 		permitStatus := fwk.RunPermitPlugins(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 		if !permitStatus.IsSuccess() {
 			var reason string
@@ -704,6 +726,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 			if forgetErr := sched.Cache().ForgetPod(assumedPod); forgetErr != nil {
 				klog.Errorf("scheduler cache ForgetPod failed: %v", forgetErr)
 			}
+			// Unreserve: 在 Permit 到 Bind 这几个阶段只要报错就回退
 			// trigger un-reserve plugins to clean up state associated with the reserved Pod
 			fwk.RunUnreservePlugins(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 			sched.recordSchedulingFailure(assumedPodInfo, permitStatus.AsError(), reason, permitStatus.Message())
@@ -723,6 +746,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		}
 
 		// Run "prebind" plugins.
+		// Wait Thread 之 PreBind: 在真正的 bind node 之前，执行一些操作，例如: 云盘挂载盘到 Node 上
 		preBindStatus := fwk.RunPreBindPlugins(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 		if !preBindStatus.IsSuccess() {
 			var reason string
@@ -737,6 +761,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 			return
 		}
 
+		// Bind Thread 之 Bind: 一个 Pod 只会被一个 BindPlugin 处理
 		err := sched.bind(bindingCycleCtx, assumedPod, scheduleResult.SuggestedHost, state)
 		metrics.E2eSchedulingLatency.Observe(metrics.SinceInSeconds(start))
 		metrics.DeprecatedE2eSchedulingLatency.Observe(metrics.SinceInMicroseconds(start))
@@ -756,6 +781,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 			metrics.PodSchedulingDuration.Observe(metrics.SinceInSeconds(podInfo.InitialAttemptTimestamp))
 
 			// Run "postbind" plugins.
+			// Bind Thread 之 PostBind: bind 成功之后执行的逻辑
 			fwk.RunPostBindPlugins(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 		}
 	}()

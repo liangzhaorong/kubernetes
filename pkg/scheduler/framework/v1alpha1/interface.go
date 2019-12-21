@@ -34,6 +34,7 @@ import (
 )
 
 // NodeScoreList declares a list of nodes and their scores.
+// NodeScoreList 声明节点的列表以及它们的分数
 type NodeScoreList []NodeScore
 
 // NodeScore is a struct with node name and score.

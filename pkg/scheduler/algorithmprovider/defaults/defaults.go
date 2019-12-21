@@ -34,6 +34,7 @@ const (
 )
 
 func init() {
+	// 注册默认调度策略
 	registerAlgorithmProvider(defaultPredicates(), defaultPriorities())
 }
 

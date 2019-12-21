@@ -71,6 +71,7 @@ type Options struct {
 }
 
 // NewOptions returns default scheduler app options.
+// NewOptions 主要用来构造 SchedulerServer 使用的参数和上下文，其中核心参数为 KubeSchedulerConfiguration
 func NewOptions() (*Options, error) {
 	cfg, err := newDefaultComponentConfig()
 	if err != nil {

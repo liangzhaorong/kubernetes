@@ -68,6 +68,7 @@ type Option func(framework.Registry) error
 
 // NewSchedulerCommand creates a *cobra.Command object with default parameters and registryOptions
 func NewSchedulerCommand(registryOptions ...Option) *cobra.Command {
+	// 构造 option
 	opts, err := options.NewOptions()
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
@@ -164,6 +165,7 @@ func runCommand(cmd *cobra.Command, args []string, opts *options.Options, regist
 }
 
 // Run executes the scheduler based on the given configuration. It only returns on error or when context is done.
+// Run 基于给定的配置启动 scheduler
 func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig, outOfTreeRegistryOptions ...Option) error {
 	// To help debugging, immediately log version
 	klog.V(1).Infof("Starting Kubernetes Scheduler version %+v", version.Get())
@@ -243,10 +245,12 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig, outOfTre
 	}
 
 	// Start all informers.
+	// 运行 PodInformer，并运行 InformerFactory。此部分逻辑为 client-go 的 informer 机制
 	go cc.PodInformer.Informer().Run(ctx.Done())
 	cc.InformerFactory.Start(ctx.Done())
 
 	// Wait for all caches to sync before scheduling.
+	// 调度前等待所有的缓存同步
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
 
 	// If leader election is enabled, runCommand via LeaderElector until done and exit.

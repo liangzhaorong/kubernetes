@@ -126,12 +126,22 @@ const (
 // If yes, you are expected to invalidate the cached predicate result for related API object change.
 // For example:
 // https://github.com/kubernetes/kubernetes/blob/36a218e/plugin/pkg/scheduler/factory/factory.go#L422
+// 对于 predicate 开发者的重要说明:
+// 我们对属于同等类的 pods 使用缓存的 predicate 结果. 因此在更新现有的 predicate 时，应考虑你的更改是否会对
+// 任何 API 对象的属性(如 Pod, Node, Service 等) 引入新的依赖关系.
+// 如果是, 则应使相关 API 对象更改的缓存 predicate 结果无效.
+// 例如:
+// https://github.com/kubernetes/kubernetes/blob/36a218e/plugin/pkg/scheduler/factory/factory.go#L422
 
 // IMPORTANT NOTE: this list contains the ordering of the predicates, if you develop a new predicate
 // it is mandatory to add its name to this list.
 // Otherwise it won't be processed, see generic_scheduler#podFitsOnNode().
 // The order is based on the restrictiveness & complexity of predicates.
 // Design doc: https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/predicates-ordering.md
+// 重要说明: 该列表包含 predicates 的顺序, 如果你开发新的 predicate, 则必须将其函数名称添加到该列表中.
+// 否则, 它将不会被处理, 参见 generic_scheduler#podFitsOnNode().
+// 顺序基于 predicates 的限制性和复杂性.
+// 设计文件: https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/predicates-ordering.md
 var (
 	predicatesOrdering = []string{CheckNodeUnschedulablePred,
 		GeneralPred, HostNamePred, PodFitsHostPortsPred,
@@ -143,6 +153,7 @@ var (
 )
 
 // Ordering returns the ordering of predicates.
+// Ordering 返回 predicates 的排序
 func Ordering() []string {
 	return predicatesOrdering
 }
@@ -783,6 +794,9 @@ func podName(pod *v1.Pod) string {
 // PodFitsResources checks if a node has sufficient resources, such as cpu, memory, gpu, opaque int resources etc to run a pod.
 // First return value indicates whether a node has sufficient resources to run a pod while the second return value indicates the
 // predicate failure reasons if the node has insufficient resources to run the pod.
+// PodFitsResources 检查节点是否有足够的资源(例如 cpu, memory, gpu, opaque int 资源等等) 来运行 Pod. 
+// 第一个返回值指示节点是否有足够的资源来运行 Pod, 而第二个返回值指示如果节点没有足够的资源来运行 Pod,
+// 则该 predicate 失败的原因.
 func PodFitsResources(pod *v1.Pod, meta Metadata, nodeInfo *schedulernodeinfo.NodeInfo) (bool, []PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
@@ -1141,6 +1155,9 @@ func haveOverlap(a1, a2 []string) bool {
 
 // GeneralPredicates checks whether noncriticalPredicates and EssentialPredicates pass. noncriticalPredicates are the predicates
 // that only non-critical pods need and EssentialPredicates are the predicates that all pods, including critical pods, need.
+// GeneralPredicates 检查 noncriticalPredicates 和 EssentialPredicates 是否通过. 
+// noncriticalPredicates 是仅非紧急的 pods 需要的 predicate, 而 EssentialPredicates
+// 是所有的 pods(包括紧急的) 都需要.
 func GeneralPredicates(pod *v1.Pod, meta Metadata, nodeInfo *schedulernodeinfo.NodeInfo) (bool, []PredicateFailureReason, error) {
 	var predicateFails []PredicateFailureReason
 	for _, predicate := range []FitPredicate{noncriticalPredicates, EssentialPredicates} {

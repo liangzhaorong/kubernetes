@@ -183,6 +183,8 @@ func (g *genericScheduler) PredicateMetadataProducer() predicates.MetadataProduc
 // Schedule tries to schedule the given pod to one of the nodes in the node list.
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a FitError error with reasons.
+// Schedule 尝试将指定的 Pod 调度到 node 列表中的一个 node。
+// 如果成功，则返回节点名字；失败，则返回 FitError 错误
 func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleState, pod *v1.Pod) (result ScheduleResult, err error) {
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
@@ -202,6 +204,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 	}
 
 	// Run "prefilter" plugins.
+	// Schedule Thread 之 PreFilter: 对 Pod 的请求做预处理
 	preFilterStatus := g.framework.RunPreFilterPlugins(ctx, state, pod)
 	if !preFilterStatus.IsSuccess() {
 		return result, preFilterStatus.AsError()
@@ -209,6 +212,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 	trace.Step("Running prefilter plugins done")
 
 	startPredicateEvalTime := time.Now()
+	// Predicates 阶段: 根据指定的 pod 过滤出合适的 nodes
 	filteredNodes, failedPredicateMap, filteredNodesStatuses, err := g.findNodesThatFit(ctx, state, pod)
 	if err != nil {
 		return result, err
@@ -216,6 +220,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 	trace.Step("Computing predicates done")
 
 	// Run "postfilter" plugins.
+	// Schedule Thread 之 PostFilter: 可以用于 logs/metrics，或者对 Score 之前做数据预处理
 	postfilterStatus := g.framework.RunPostFilterPlugins(ctx, state, pod, filteredNodes, filteredNodesStatuses)
 	if !postfilterStatus.IsSuccess() {
 		return result, postfilterStatus.AsError()
@@ -237,6 +242,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 
 	startPriorityEvalTime := time.Now()
 	// When only one node after predicate, just use it.
+	// 当执行 predicate 后仅过滤出一个节点, 则只需使用它即可. 即不需再执行后面的 Priority(打分) 阶段
 	if len(filteredNodes) == 1 {
 		metrics.SchedulingAlgorithmPriorityEvaluationDuration.Observe(metrics.SinceInSeconds(startPriorityEvalTime))
 		metrics.DeprecatedSchedulingAlgorithmPriorityEvaluationDuration.Observe(metrics.SinceInMicroseconds(startPriorityEvalTime))
@@ -248,6 +254,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 	}
 
 	metaPrioritiesInterface := g.priorityMetaProducer(pod, filteredNodes, g.nodeInfoSnapshot)
+	// Priority 阶段: 对经过 Predicates 后过滤出来的 nodes 进行打分
 	priorityList, err := g.prioritizeNodes(ctx, state, pod, metaPrioritiesInterface, filteredNodes)
 	if err != nil {
 		return result, err
@@ -258,6 +265,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, state *framework.CycleS
 	metrics.SchedulingLatency.WithLabelValues(metrics.PriorityEvaluation).Observe(metrics.SinceInSeconds(startPriorityEvalTime))
 	metrics.DeprecatedSchedulingLatency.WithLabelValues(metrics.PriorityEvaluation).Observe(metrics.SinceInSeconds(startPriorityEvalTime))
 
+	// 从上面 Priority 执行后的打分结果中选取分值最高的 node 的 host
 	host, err := g.selectHost(priorityList)
 	trace.Step("Prioritizing done")
 
@@ -470,6 +478,8 @@ func (g *genericScheduler) numFeasibleNodesToFind(numAllNodes int32) (numNodes i
 
 // Filters the nodes to find the ones that fit based on the given predicate functions
 // Each node is passed through the predicate functions to determine if it is a fit
+// 过滤节点以根据给定的 predicate (过滤) 函数找到合适的节点.
+// 每个节点都通过 predicate 函数来确定它是否合适.
 func (g *genericScheduler) findNodesThatFit(ctx context.Context, state *framework.CycleState, pod *v1.Pod) ([]*v1.Node, FailedPredicateMap, framework.NodeToStatusMap, error) {
 	var filtered []*v1.Node
 	failedPredicateMap := FailedPredicateMap{}
@@ -496,9 +506,13 @@ func (g *genericScheduler) findNodesThatFit(ctx context.Context, state *framewor
 		meta := g.predicateMetaProducer(pod, g.nodeInfoSnapshot)
 		state.Write(migration.PredicatesStateKey, &migration.PredicatesStateData{Reference: meta})
 
+		// 该函数 checkNode 将执行真正的 predicates 流程处理
+		// 在下面的 ParallelizeUntil 函数中将会最多启动 16 个 goroutine 并发回调该函数对集群中所有节点
+		// 执行 predicates 流程.
 		checkNode := func(i int) {
 			// We check the nodes starting from where we left off in the previous scheduling cycle,
 			// this is to make sure all nodes have the same chance of being examined across pods.
+			// 我们从上一个调度周期中离开的节点开始检查节点, 以确保所有节点在 Pod 上被检查的机会相同.
 			nodeInfo := g.nodeInfoSnapshot.NodeInfoList[(g.nextStartNodeIndex+i)%allNodes]
 			fits, failedPredicates, status, err := g.podFitsOnNode(
 				ctx,
@@ -625,6 +639,14 @@ func (g *genericScheduler) addNominatedPods(ctx context.Context, pod *v1.Pod, me
 // When it is called from Preempt, we should remove the victims of preemption and
 // add the nominated pods. Removal of the victims is done by SelectVictimsOnNode().
 // It removes victims from meta and NodeInfo before calling this function.
+// podFitsOnNode 检查一个通过 NodeInfo 形式给定的 node 是否满足指定的 predicate 函数.
+// 对于给定的一个 Pod, podFitsOnNode 将会检查是否存在某个 "等价的 Pod", 然后重用那个等价 Pod
+// 缓存的 predicate 结果.
+// 该函数的调用入口有两处: Schedule 和 Preempt.
+// - 当从 Schedule 调用时, 该函数将会测试 node 上所有已存在的 pod, 以及被指定将要调度到这个 node 上
+//   的其他高优先级或同等优先级的 pod 后，当前 pod 是否可以被调度到这个 node 上.
+// - 当从 Preempt 调用时, 应删除被抢占的受害者并指定的 pod. 通过 SelectVictimsOnNode() 删除受害者.
+//   它会在调用该函数前从 meta 和 NodeInfo 中删除受害者.
 func (g *genericScheduler) podFitsOnNode(
 	ctx context.Context,
 	state *framework.CycleState,
@@ -648,6 +670,17 @@ func (g *genericScheduler) podFitsOnNode(
 	// those are the current "pod" must yield to them and not take a space opened
 	// for running them. It is ok if the current "pod" take resources freed for
 	// lower priority pods.
+	// 出于某些原因我们需要运行两次 predicate. 如果 node 上有更高或相同优先级的 "指定 pods"(
+	// 这里的 "指定 pods" 指的是通过 schedule 计算后指定要跑在一个 node 上但是还未真正运行
+	// 在那个 node 上的 pods), 我们将这些 pods 加入 meta 和 nodeInfo 后执行一次计算过程.
+	// 如果这个过程所有的 predicate 都成功了, 我们再假设这些 "指定 pods" 不会跑到 node 上再
+	// 运行一次. 第二次计算是必须的, 因为有一些 predicate 比如 pod 亲和性, 也许在 "指定 pods"
+	// 没有成功跑到 node 的情况下会不满足.
+	// 如果该 node 没有 "指定 pods" 或者第一次执行 predicates 过程中失败了, 那么不会执行第二次.
+	// 我们在第一次调度时只考虑相等或者更高优先级的 pod, 因为这些 pod 是当前 "pod" 必须臣服的, 
+	// 也就是不能从这些 pods 中抢到资源, 这些 pods 不会被当前 pod 抢占. 这样当前 pod 就可以安心
+	// 从低优先级的 pod 手里抢资源了.
+	//
 	// Requiring that the new pod is schedulable in both circumstances ensures that
 	// we are making a conservative decision: predicates like resources and inter-pod
 	// anti-affinity are more likely to fail when the nominated pods are treated
@@ -655,12 +688,18 @@ func (g *genericScheduler) podFitsOnNode(
 	// the nominated pods are treated as not running. We can't just assume the
 	// nominated pods are running because they are not running right now and in fact,
 	// they may end up getting scheduled to a different node.
+	// 新 pod 在上述两种情况下都可调度基于一个保守的假设: 资源和 pod 反亲和性的 predicate 
+	// 在 "指定 pods" 被处理为 Running 时更容易失败; pod 亲和性在 "指定 pods" 被处理为
+	// Not Running 时更加容易失败.
+	// 我们不能假设 "指定 pods" 是 Running 的因为它们当前还没有运行, 而且事实上, 它们确实有可能
+	// 最终又被调度到其他 node 上了.
 	for i := 0; i < 2; i++ {
 		metaToUse := meta
 		stateToUse := state
 		nodeInfoToUse := info
 		if i == 0 {
 			var err error
+			// 第一次执行，将 "指定 pods" 添加到 meta 和 nodeInode 中
 			podsAdded, metaToUse, stateToUse, nodeInfoToUse, err = g.addNominatedPods(ctx, pod, meta, state, info)
 			if err != nil {
 				return false, []predicates.PredicateFailureReason{}, nil, err
@@ -669,6 +708,7 @@ func (g *genericScheduler) podFitsOnNode(
 			break
 		}
 
+		// 逐一按顺序调用内置的 predicate 函数
 		for _, predicateKey := range predicates.Ordering() {
 			var (
 				fit     bool
@@ -696,6 +736,7 @@ func (g *genericScheduler) podFitsOnNode(
 			}
 		}
 
+		// Schedule Thread 之 Filter: 自定义 filter 逻辑
 		status = g.framework.RunFilterPlugins(ctx, stateToUse, pod, nodeInfoToUse)
 		if !status.IsSuccess() && !status.IsUnschedulable() {
 			return false, failedPredicates, status, status.AsError()
@@ -711,6 +752,11 @@ func (g *genericScheduler) podFitsOnNode(
 // Each priority function can also have its own weight
 // The node scores returned by the priority function are multiplied by the weights to get weighted scores
 // All scores are finally combined (added) to get the total weighted scores of all nodes
+// prioritizeNodes 通过并行运行各个 priority 函数对节点进行优先级排序. 每个 priority 函数预期得分为 0-10.
+// 0 是最低优先级分数(最不喜欢的节点), 而 10 是最高优先级.
+// 每个 priority 函数也可以有自己的权重.
+// priority 函数返回的节点分数乘以权重(weight)即可得到加权分数.
+// 最后将所有分数合并(相加)以获得所有节点的总加权分数.
 func (g *genericScheduler) prioritizeNodes(
 	ctx context.Context,
 	state *framework.CycleState,
