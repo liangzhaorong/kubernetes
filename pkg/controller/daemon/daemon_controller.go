@@ -275,12 +275,15 @@ func (dsc *DaemonSetsController) runWorker() {
 
 // processNextWorkItem deals with one key off the queue.  It returns false when it's time to quit.
 func (dsc *DaemonSetsController) processNextWorkItem() bool {
+	// 从工作队列中出队一个成员, 即一个 key
 	dsKey, quit := dsc.queue.Get()
 	if quit {
 		return false
 	}
 	defer dsc.queue.Done(dsKey)
 
+	// 使用这个 key, 在 syncHandler 方法中尝试从 Informer 维护的缓存中拿到
+	// 它所对应的 DaemonSet 对象
 	err := dsc.syncHandler(dsKey.(string))
 	if err == nil {
 		dsc.queue.Forget(dsKey)
@@ -1124,7 +1127,15 @@ func (dsc *DaemonSetsController) syncDaemonSet(key string) error {
 	if err != nil {
 		return err
 	}
+	// 尝试使用 dsLister 获取这个 key 对应的 DaemonSet 对象
+	// 这个操作, 其实就是在访问本地缓存的索引.
+	// PS: 在 Kubernetes 源码中, 可以看到控制器从各种 Lister 里获取对象,
+	// 如, podLister、nodeList 等, 它们使用的都是 Informer 和缓存机制
 	ds, err := dsc.dsLister.DaemonSets(namespace).Get(name)
+	// 如果控制循环从缓存中拿不到这个对象 (即 dsLister 返回了 IsNotFound 错误),
+	// 那就意味着这个 DaemonSet 对象的 key 是通过删除事件添加进工作队列. 所以,
+	// 尽管队列里有这个 key, 但是对应的 DaemonSet 对象已经被删除了
+	// 这时, 需要调用 DeleteExpectations 将这个 key 对应的 DaemonSet 从真实的集群中删除
 	if errors.IsNotFound(err) {
 		klog.V(3).Infof("daemon set has been deleted %v", key)
 		dsc.expectations.DeleteExpectations(key)
