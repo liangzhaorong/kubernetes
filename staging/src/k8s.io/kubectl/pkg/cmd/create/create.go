@@ -249,6 +249,16 @@ func (o *CreateOptions) RunCreate(f cmdutil.Factory, cmd *cobra.Command) error {
 		return err
 	}
 
+	// 首先通过 f.NewBuilder 实例化 Builder 对象, 通过函数 Unstructured、Schema、ContinueOnError、NamespaceParam、
+	// FilenameParam、LabelSelectorParam、Flatten 对参数赋值和初始化, 将参数保存到 Builder 对象中. 最后通过 Do 函数
+	// 完成对资源的创建.
+	//
+	// 其中, FilenameParam 函数用于识别 kubectl create 命令行参数是通过哪种方式传入资源对象描述文件的, kubectl 目前支持
+	// 3 种方式: 1. 标准输入 Stdin (即 cat deployment.yaml | kubectl create -f -); 2. 本地文件 (即 kubectl create -f
+	// deployment.yaml); 3. 网络文件 (即 kubectl create -f http://<host>/deployment.yaml).
+	//
+	// Do 函数返回 Result 对象, Result 对象的 info 字段保存了 RESTClient 与 kube-apiserver 交互产生的结果,
+	// 可通过 Result 对象的 Infos 或 Object 方法来获取执行结果. 而 Result 对象中的结果, 是由 Visitor 执行产生的.
 	r := f.NewBuilder().
 		Unstructured().
 		Schema(schema).
@@ -282,6 +292,9 @@ func (o *CreateOptions) RunCreate(f cmdutil.Factory, cmd *cobra.Command) error {
 					return cmdutil.AddSourceToErr("creating", info.Source, err)
 				}
 			}
+			// 这里通过 Helper.Create 向 kube-apiserver 发送创建资源的请求, Helper 对 client-go 的 RESTClient
+			// 进行了封装, 在此基础上实现了 Get、List、Watch、Delete、Create、Patch、Replace 等方法, 实现了与
+			// kube-apiserver 的交互功能;
 			obj, err := resource.
 				NewHelper(info.Client, info.Mapping).
 				DryRun(o.DryRunStrategy == cmdutil.DryRunServer).
@@ -290,6 +303,7 @@ func (o *CreateOptions) RunCreate(f cmdutil.Factory, cmd *cobra.Command) error {
 			if err != nil {
 				return cmdutil.AddSourceToErr("creating", info.Source, err)
 			}
+			// 将于 kube-apiserver 交互后得到的结果通过 info.Refresh 函数更新到 info.Object 中
 			info.Refresh(obj, true)
 		}
 
@@ -297,6 +311,8 @@ func (o *CreateOptions) RunCreate(f cmdutil.Factory, cmd *cobra.Command) error {
 
 		return o.PrintObj(info.Object)
 	})
+	// result.Visit 执行完后, 将逐个退出 Visitor, 其过程为 DecoratedVisitor -> ContinueOnErrorVisitor ->
+	// FlattenListVisitor -> FlattenListVisitor -> StreamVisitor -> FileVisitor -> EagerVisitorList.
 	if err != nil {
 		return err
 	}

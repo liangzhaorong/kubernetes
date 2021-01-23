@@ -432,11 +432,13 @@ func HandlePluginCommand(pluginHandler PluginHandler, cmdArgs []string) error {
 }
 
 // NewKubectlCommand creates the `kubectl` command and its nested children.
+// NewKubectlCommand 创建 kubectl 命令和它嵌套的子命令
 func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 	warningHandler := rest.NewWarningWriter(err, rest.WarningWriterOptions{Deduplicate: true, Color: term.AllowsColorOutput(err)})
 	warningsAsErrors := false
 
 	// Parent command to which all subcommands are added.
+	// 实例化 kubectl 命令, 这是一个 cobra.Command 对象, 旗下的所有的子命令将添加到 kubectl 上
 	cmds := &cobra.Command{
 		Use:   "kubectl",
 		Short: i18n.T("kubectl controls the Kubernetes cluster manager"),
@@ -448,10 +450,12 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 		Run: runHelp,
 		// Hook before and after Run initialize and write profiles to disk,
 		// respectively.
+		// 回调 Run 函数前执行该函数
 		PersistentPreRunE: func(*cobra.Command, []string) error {
 			rest.SetDefaultWarningHandler(warningHandler)
 			return initProfiling()
 		},
+		// 回调 Run 函数后执行该函数
 		PersistentPostRunE: func(*cobra.Command, []string) error {
 			if err := flushProfiling(); err != nil {
 				return err
@@ -490,6 +494,8 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 
 	cmds.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
+	// 在执行每一个 kubectl 命令前, 都需要执行实例化 cmdutil Factory 接口对象的操作.
+	// Factory 是一个通用对象, 它提供了与 kube-apiserver 的交互方式, 以及验证资源对象等方法.
 	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
 
 	// Sending in 'nil' for the getLanguageFn() results in using
@@ -504,8 +510,11 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 
 	ioStreams := genericclioptions.IOStreams{In: in, Out: out, ErrOut: err}
 
+	// 定义 kubectl 的 8 种命令类别, 即基础命令(初级)、基础命令(中级)、部署命令、集群管理命令、
+	// 故障排查和调试命令、高级命令及其设置命令.
 	groups := templates.CommandGroups{
 		{
+			// 基础命令（初级）
 			Message: "Basic Commands (Beginner):",
 			Commands: []*cobra.Command{
 				create.NewCmdCreate(f, ioStreams),
@@ -515,6 +524,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 基础命令（中级）
 			Message: "Basic Commands (Intermediate):",
 			Commands: []*cobra.Command{
 				explain.NewCmdExplain("kubectl", f, ioStreams),
@@ -524,6 +534,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 部署命令
 			Message: "Deploy Commands:",
 			Commands: []*cobra.Command{
 				rollout.NewCmdRollout(f, ioStreams),
@@ -532,6 +543,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 集群管理命令
 			Message: "Cluster Management Commands:",
 			Commands: []*cobra.Command{
 				certificates.NewCmdCertificate(f, ioStreams),
@@ -544,6 +556,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 故障排查和调试命令
 			Message: "Troubleshooting and Debugging Commands:",
 			Commands: []*cobra.Command{
 				describe.NewCmdDescribe("kubectl", f, ioStreams),
@@ -558,6 +571,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 高级命令
 			Message: "Advanced Commands:",
 			Commands: []*cobra.Command{
 				diff.NewCmdDiff(f, ioStreams),
@@ -569,6 +583,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			},
 		},
 		{
+			// 设置命令
 			Message: "Settings Commands:",
 			Commands: []*cobra.Command{
 				label.NewCmdLabel(f, ioStreams),

@@ -152,6 +152,7 @@ func NewGetOptions(parent string, streams genericclioptions.IOStreams) *GetOptio
 
 // NewCmdGet creates a command object for the generic "get" action, which
 // retrieves one or more resources from a server.
+// NewCmdGet 为 "get" 操作创建一个 cobra.Command 命令对象, 它将从 kube-apiserver 中获取一个或多个资源对象
 func NewCmdGet(parent string, f cmdutil.Factory, streams genericclioptions.IOStreams) *cobra.Command {
 	o := NewGetOptions(parent, streams)
 
@@ -171,6 +172,12 @@ func NewCmdGet(parent string, f cmdutil.Factory, streams genericclioptions.IOStr
 
 	o.PrintFlags.AddFlags(cmd)
 
+	// cmd.Flags() 实现了命令行参数的解析:
+	// 第 1 个参数, 接收命令行参数的变量;
+	// 第 2 个参数, 指定命令行参数的名称;
+	// 第 3 个参数, 指定命令行参数的名称简写;
+	// 第 4 个参数, 设置命令行参数的默认值;
+	// 第 5 个参数, 设置命令行参数的提示信息.
 	cmd.Flags().StringVar(&o.Raw, "raw", o.Raw, "Raw URI to request from the server.  Uses the transport specified by the kubeconfig file.")
 	cmd.Flags().BoolVarP(&o.Watch, "watch", "w", o.Watch, "After listing/getting the requested object, watch for changes. Uninitialized objects are excluded if no object name is provided.")
 	cmd.Flags().BoolVar(&o.WatchOnly, "watch-only", o.WatchOnly, "Watch for changes to the requested object(s), without listing/getting first.")

@@ -46,6 +46,7 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
+	// 执行命令, 原理是对命令行中的所有参数解析出 Command 和 Flag, 把 Flag 作为参数传递给 Command 并执行.
 	if err := command.Execute(); err != nil {
 		os.Exit(1)
 	}

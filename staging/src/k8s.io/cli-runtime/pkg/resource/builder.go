@@ -48,6 +48,10 @@ const defaultHttpGetAttempts int = 3
 // Builder provides convenience functions for taking arguments and parameters
 // from the command line and converting them to a list of resources to iterate
 // over using the Visitor interface.
+//
+// Builder 用于将命令行获取的参数转换成资源对象(Resouce Object). 它实现了一种通用
+// 的资源对象转换功能. Builder 结构体保存了命令行获取的各种参数, 并通过不同函数处理
+// 不同参数, 将其转换成资源对象.
 type Builder struct {
 	categoryExpanderFn CategoryExpanderFunc
 
@@ -232,6 +236,12 @@ func (b *Builder) AddError(err error) *Builder {
 // will cause an error.
 // If ContinueOnError() is set prior to this method, objects on the path that are not
 // recognized will be ignored (but logged at V(2)).
+//
+// FilenameParam 函数用于识别 kubectl create 命令行参数是通过哪种方式传入资源对象描述文件的,
+// kubectl 目前支持 3 种方式:
+// - 第 1 种, 标准输入 Stdin（即 "cat deployment.yaml | kubectl create -f -"）;
+// - 第 2 种, 本地文件（即 "kubectl create -f deployment.yaml"）;
+// - 第 3 种, 网络文件（即 "kubectl create -f http://<host>/deployment.yaml"）.
 func (b *Builder) FilenameParam(enforceNamespace bool, filenameOptions *FilenameOptions) *Builder {
 	if errs := filenameOptions.validate(); len(errs) > 0 {
 		b.errs = append(b.errs, errs...)
@@ -1106,6 +1116,9 @@ func (b *Builder) visitByPaths() *Result {
 // The visitor will respect the error behavior specified by ContinueOnError. Note that stream
 // inputs are consumed by the first execution - use Infos() or Object() on the Result to capture a list
 // for further iteration.
+//
+// Do 函数返回 Result 对象, Result 对象的 info 字段保存了 RESTClient 与 kube-apiserver 交互产生的结果,
+// 可通过 Result 对象的 Infos 或 Object 方法来获取执行结果. 而 Result 对象中的结果, 是由 Visitor 执行产生的.
 func (b *Builder) Do() *Result {
 	r := b.visitorResult()
 	r.mapper = b.Mapper()

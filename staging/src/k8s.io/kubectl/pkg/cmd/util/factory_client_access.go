@@ -47,6 +47,8 @@ type openAPIGetter struct {
 	getter openapi.Getter
 }
 
+// NewFactory 在执行每一个 kubectl 命令前, 都需要执行实例化 cmdutil Factory 接口对象的操作.
+// Factory 是一个通用对象, 它提供了与 kube-apiserver 的交互方式, 以及验证资源对象等方法.
 func NewFactory(clientGetter genericclioptions.RESTClientGetter) Factory {
 	if clientGetter == nil {
 		panic("attempt to instantiate client_access_factory with nil clientGetter")
