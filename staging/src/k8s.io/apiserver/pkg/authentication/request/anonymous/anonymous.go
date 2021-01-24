@@ -29,8 +29,15 @@ const (
 	unauthenticatedGroup = user.AllUnauthenticated
 )
 
+// Anonymous 认证就是匿名认证, 未被其他认证器拒绝的请求都可视为匿名请求. kube-apiserver
+// 默认开启 Anonymous（匿名）认证.
+//
+// kube-apiserver 通过指定 --anonymous-auth 参数启用 Anonymous 认证, 默认该参数为 true
+
+// Anonymous 认证的实现
 func NewAuthenticator() authenticator.Request {
 	return authenticator.RequestFunc(func(req *http.Request) (*authenticator.Response, bool, error) {
+		// 在进行 Anonymous 认证时直接认证成功
 		auds, _ := authenticator.AudiencesFrom(req.Context())
 		return &authenticator.Response{
 			User: &user.DefaultInfo{

@@ -32,6 +32,7 @@ import (
 // Write and other vars are slices of the allowed verbs.
 // Label and Annotation are default maps of bootstrappolicy.
 var (
+	// 如下 4 个为 kube-apiserver 内置权限, 内置的角色会引用内置的权限
 	Write      = []string{"create", "update", "patch", "delete", "deletecollection"}
 	ReadWrite  = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 	Read       = []string{"get", "list", "watch"}

@@ -25,6 +25,7 @@ import (
 )
 
 // RegisterAllAdmissionPlugins registers all admission plugins
+// RegisterAllAdmissionPlugins 注册所有的准入控制器插件
 func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	lifecycle.Register(plugins)
 	validatingwebhook.Register(plugins)

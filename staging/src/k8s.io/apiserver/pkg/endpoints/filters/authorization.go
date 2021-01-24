@@ -42,7 +42,9 @@ const (
 )
 
 // WithAuthorizationCheck passes all authorized requests on to handler, and returns a forbidden error otherwise.
+// WithAuthorization 是 kube-apiserver 的授权 Handler 方法.
 func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.NegotiatedSerializer) http.Handler {
+	// 如果 a 授权器为 nil, 则说明 kube-apiserver 未启用任何授权功能
 	if a == nil {
 		klog.Warningf("Authorization is disabled")
 		return handler
@@ -51,13 +53,16 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 		ctx := req.Context()
 		ae := request.AuditEventFrom(ctx)
 
+		// 从 HTTP 请求中获取客户端信息
 		attributes, err := GetAuthorizerAttributes(ctx)
 		if err != nil {
 			responsewriters.InternalError(w, req, err)
 			return
 		}
+		// 在 a.Authorize 对请求进行授权过程中, 遍历已启用的授权器列表并执行授权器.
 		authorized, reason, err := a.Authorize(ctx, attributes)
 		// an authorizer like RBAC could encounter evaluation errors and still allow the request, so authorizer decision is checked before error here.
+		// 如果授权成功, 则进入准入控制器阶段
 		if authorized == authorizer.DecisionAllow {
 			audit.LogAnnotation(ae, decisionAnnotationKey, decisionAllow)
 			audit.LogAnnotation(ae, reasonAnnotationKey, reason)
@@ -70,6 +75,7 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 			return
 		}
 
+		// 若授权失败, 则通过 responsewriters.Forbidden 函数返回 HTTP 401 Unauthorized 并返回授权失败的原因.
 		klog.V(4).Infof("Forbidden: %#v, Reason: %q", req.RequestURI, reason)
 		audit.LogAnnotation(ae, decisionAnnotationKey, decisionForbid)
 		audit.LogAnnotation(ae, reasonAnnotationKey, reason)

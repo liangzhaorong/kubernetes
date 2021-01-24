@@ -104,6 +104,7 @@ func checkNonZeroInsecurePort(fs *pflag.FlagSet) error {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
+	// 初始化各个模块的默认配置, 如初始化 Etcd、Audit、Admission 等模块的默认配置
 	s := options.NewServerRunOptions()
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -130,16 +131,20 @@ cluster's shared state through which all other components interact.`,
 				return err
 			}
 			// set default options
+			// 填充默认的配置参数
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err
 			}
 
 			// validate options
+			// 验证配置参数的合法性和可用性
 			if errs := completedOptions.Validate(); len(errs) != 0 {
 				return utilerrors.NewAggregate(errs)
 			}
 
+			// 最后将 options.ServerRunOptions（kube-apiserver 组件的运行配置）对象传入 Run 函数,
+			// Run 函数定义了 kube-apiserver 组件启动的逻辑, 它是一个运行不退出的常驻进程..
 			return Run(completedOptions, genericapiserver.SetupSignalHandler())
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -442,6 +447,7 @@ func CreateKubeAPIServerConfig(
 }
 
 // BuildGenericConfig takes the master server options and produces the genericapiserver.Config associated with it
+// BuildGenericConfig 初始化 APIServer 通用配置
 func buildGenericConfig(
 	s *options.ServerRunOptions,
 	proxyTransport *http.Transport,
@@ -454,7 +460,13 @@ func buildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
+	// 1. genericConfig 实例化
+	// 实例化 genericConfig 对象, 并为 genericConfig 对象设置默认值
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
+	// genericConfig.MergedResourceConfig 用于设置启用/禁用 GV（资源组、资源版本）及其 Resource（资源）.
+	// 如果未在命令行参数中指定启用/禁用的 GV, 则通过 controlplane.DefaultAPIResourceConfigSource 启用
+	// 默认设置的 GV 及其资源. controlplane.DefaultAPIResourceConfigSource 将启用资源版本为 Stable 和
+	// Beta 的资源, 默认不启用 Alpha 资源版本的资源.
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {
@@ -474,6 +486,10 @@ func buildGenericConfig(
 		return
 	}
 
+	// 2. OpenAPI/Swagger 配置
+	// genericConfig.OpenAPIConfig 用于生成 OpenAPI 规范. 在默认情况下, 通过 DefaultOpenAPIConfig 函数为其设置默认值.
+	// 其中 generatedopenapi.GetOpenAPIDefinitions 定义了 OpenAPIDefinition 文件（OpenAPI 定义文件）, 该文件由 openapi-gen
+	// 代码生成器自动生成.
 	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIConfig.Info.Title = "Kubernetes"
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
@@ -484,6 +500,10 @@ func buildGenericConfig(
 	kubeVersion := version.Get()
 	genericConfig.Version = &kubeVersion
 
+	// 3. StorageFactory 存储（Etcd）配置
+	// kubeapiserver.NewStorageFactoryConfig 函数实例化了 storageFactoryConfig 对象, 该对象定义了 kube-apiserver
+	// 与 Etcd 的交互方式, 如 Etcd 认证、Etcd 地址、存储前缀等. 另外, 该对象也定义了资源存储方式, 如资源信息、资源编码
+	// 类型、资源状态等.
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
 	completedStorageFactoryConfig, err := storageFactoryConfig.Complete(s.Etcd)
@@ -519,11 +539,28 @@ func buildGenericConfig(
 	}
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
+	// 4. Authentication 认证配置
+	// kube-apiserver 作为 Kubernetes 集群的请求入口, 接收组件与客户端的访问请求, 每个请求都需要经过认证（Authentication）、
+	// 授权（Authorization）及准入控制器（Admission Controller）3 个阶段, 之后才能真正地操作资源.
+	//
+	// kube-apiserver 目前提供了 9 种认证机制, 分别是 BasicAuth、ClientCA、TokenAuth、BootstrapToken、RequestHeader、
+	// WebhookTokenAuth、Anonymous、OIDC、ServiceAccountAuth. 每一种认证机制被实例化后会成为认证器（Authenticator）,
+	// 每一个认证器都被封装在 http.Handler 请求处理函数中, 它们接收组件或客户端的请求并认证请求.
+	//
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
 	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector, genericConfig.OpenAPIConfig, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
 	}
 
+	// 5. Authorization 授权配置
+	// 在 Kubernetes 系统组件或客户端请求通过认证阶段后, 会来到授权阶段. kube-apiserver 支持多种授权机制, 并支持同时
+	// 开启多个授权功能, 客户端发起一个请求, 在经过授权阶段时, 只要有一个授权器通过则授权成功.
+	//
+	// kube-apiserver 提供 6 种授权机制, 分别是 AlwaysAllow、AlwaysDeny、Webhook、Node、ABAC、RBAC. 每一种授权机制
+	// 被实例化后会成为授权器（Authorizer）, 每一个授权器都被封装在 http.Handler 请求处理函数中, 它们接收组件或客户端
+	// 的请求并授权请求.
+	//
+	// 通过 BuildAuthorizer 函数实例化授权器.
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver, err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
 		lastErr = fmt.Errorf("invalid authorization config: %v", err)
@@ -538,6 +575,7 @@ func buildGenericConfig(
 		return
 	}
 
+	// 生成准入控制器配置对象
 	admissionConfig := &kubeapiserveradmission.Config{
 		ExternalInformers:    versionedInformers,
 		LoopbackClientConfig: genericConfig.LoopbackClientConfig,
@@ -568,7 +606,9 @@ func buildGenericConfig(
 }
 
 // BuildAuthorizer constructs the authorizer
+// BuildAuthorizer 实例化授权器
 func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector, versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
+	// 生成授权器的配置文件
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
 	if EgressSelector != nil {
@@ -579,6 +619,7 @@ func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector
 		authorizationConfig.CustomDial = egressDialer
 	}
 
+	// 实例化授权器
 	return authorizationConfig.New()
 }
 

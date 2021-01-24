@@ -225,7 +225,15 @@ func resourceMatches(p abac.Policy, a authorizer.Attributes) bool {
 }
 
 // Authorize implements authorizer.Authorize
+//
+// PolicyList 是 ABAC 授权器. ABAC 授权器基于属性的访问控制定义了访问控制范例, 其中通过将属性组合在一起的
+// 策略来向用户授予操作权限.
+//
+// kube-apiserver 通过指定如下参数启用 ABAC 授权:
+// - --authorization-mode=ABAC: 启用 ABAC 授权
+// - --authorization-policy-file: 基于 ABAC 模式, 指定策略文件, 该文件使用 JSON 格式进行描述, 每一行都是一个策略对象.
 func (pl PolicyList) Authorize(ctx context.Context, a authorizer.Attributes) (authorizer.Decision, string, error) {
+	// 遍历所有策略, 通过 matches 函数进行匹配, 如果授权成功, 则返回 DecisionAllow 决策状态
 	for _, p := range pl {
 		if matches(*p, a) {
 			return authorizer.DecisionAllow, "", nil
@@ -238,6 +246,8 @@ func (pl PolicyList) Authorize(ctx context.Context, a authorizer.Attributes) (au
 }
 
 // RulesFor returns rules for the given user and namespace.
+// RulesFor ABAC 的规则解析器会根据每一个策略将资源类型的规则列表（ResourceRuleInfo）和非资源类型的规则列表（NonResourceRuleInfo）
+// 都设置为该用户有权限操作的资源版本、资源及资源操作方法.
 func (pl PolicyList) RulesFor(user user.Info, namespace string) ([]authorizer.ResourceRuleInfo, []authorizer.NonResourceRuleInfo, bool, error) {
 	var (
 		resourceRules    []authorizer.ResourceRuleInfo

@@ -48,6 +48,9 @@ func Register(plugins *admission.Plugins) {
 
 // AlwaysPullImages is an implementation of admission.Interface.
 // It looks at all new pods and overrides each container's image pull policy to Always.
+//
+// AlwaysPullImages 准入控制器在创建新的容器之前更新最新镜像. 对拦截的 kube-apiserver 请求中的 Pod
+// 资源对象进行修改, 将 Pod 资源对象的镜像拉取策略修改为 Always.
 type AlwaysPullImages struct {
 	*admission.Handler
 }
@@ -56,8 +59,10 @@ var _ admission.MutationInterface = &AlwaysPullImages{}
 var _ admission.ValidationInterface = &AlwaysPullImages{}
 
 // Admit makes an admission decision based on the request attributes
+// Admit 用于变更用户信息, 能够修改用户提交的资源对象信息.
 func (a *AlwaysPullImages) Admit(ctx context.Context, attributes admission.Attributes, o admission.ObjectInterfaces) (err error) {
 	// Ignore all calls to subresources or resources other than pods.
+	// 忽略 Pod 以外的资源对象, 因为 AlwaysPullImages 准入控制器只对 Pod 资源对象有效
 	if shouldIgnore(attributes) {
 		return nil
 	}
@@ -66,6 +71,7 @@ func (a *AlwaysPullImages) Admit(ctx context.Context, attributes admission.Attri
 		return apierrors.NewBadRequest("Resource was marked with kind Pod but was unable to be converted")
 	}
 
+	// 将当前 Pod 资源对象的所有 Container 的拉取策略都更改为 Always, 这样在创建新的容器之前实现了更新最新镜像
 	pods.VisitContainersWithPath(&pod.Spec, field.NewPath("spec"), func(c *api.Container, _ *field.Path) bool {
 		c.ImagePullPolicy = api.PullAlways
 		return true
@@ -75,6 +81,7 @@ func (a *AlwaysPullImages) Admit(ctx context.Context, attributes admission.Attri
 }
 
 // Validate makes sure that all containers are set to always pull images
+// Validate 在准入控制器执行变更操作 Admit 后的验证操作, 这里用于确保所有容器的拉取策略都被设置为 Always.
 func (*AlwaysPullImages) Validate(ctx context.Context, attributes admission.Attributes, o admission.ObjectInterfaces) (err error) {
 	if shouldIgnore(attributes) {
 		return nil
@@ -86,6 +93,8 @@ func (*AlwaysPullImages) Validate(ctx context.Context, attributes admission.Attr
 	}
 
 	var allErrs []error
+	// 确保所有容器的拉取策略都被设置为 Always, 如果未能将拉取策略全部设置为 Always, 则通过 admission.NewForbidden 函数
+	// 返回 403 Forbidden.
 	pods.VisitContainersWithPath(&pod.Spec, field.NewPath("spec"), func(c *api.Container, p *field.Path) bool {
 		if c.ImagePullPolicy != api.PullAlways {
 			allErrs = append(allErrs, admission.NewForbidden(attributes,

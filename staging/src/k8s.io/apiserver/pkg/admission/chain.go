@@ -20,6 +20,8 @@ import "context"
 
 // chainAdmissionHandler is an instance of admission.NamedHandler that performs admission control using
 // a chain of admission handlers
+//
+// chainAdmissionHandler 用于管理 kube-apiserver 中的所有已启用的准入控制器 (Admin 方法及 Validate 方法)
 type chainAdmissionHandler []Interface
 
 // NewChainHandler creates a new chain handler from an array of handlers. Used for testing.

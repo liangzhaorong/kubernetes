@@ -26,13 +26,18 @@ import (
 	"k8s.io/kubernetes/pkg/apis/core/v1"
 )
 
+// 根据 Go 语言的导入和初始化机制, 在这里完成 core 资源组下所有资源的注册过程.
 func init() {
+	// legacyscheme.Scheme 是全局变量
 	Install(legacyscheme.Scheme)
 }
 
 // Install registers the API group and adds types to a scheme
 func Install(scheme *runtime.Scheme) {
+	// core.AddToScheme 函数注册了 core 资源组内部版本的资源
 	utilruntime.Must(core.AddToScheme(scheme))
+	// v1.AddToScheme 函数注册了 core 资源组外部版本的资源
 	utilruntime.Must(v1.AddToScheme(scheme))
+	// scheme.SetVersionPriority 函数注册了资源组的版本顺序. 如果有多个资源版本, 排在最前面的为资源首选版本.
 	utilruntime.Must(scheme.SetVersionPriority(v1.SchemeGroupVersion))
 }

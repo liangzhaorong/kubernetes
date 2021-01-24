@@ -72,6 +72,7 @@ type Config struct {
 }
 
 // alwaysAllow always allows an action
+// alwaysAllow 授权器会允许所有请求, 其也是 kube-apiserver 的默认选项
 type alwaysAllow struct{}
 
 func (alwaysAllow) Authorize(ctx context.Context, requestAttributes authorizer.Attributes) (authorizer.Decision, string, error) {

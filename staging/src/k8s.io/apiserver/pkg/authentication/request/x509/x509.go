@@ -130,6 +130,7 @@ func NewDynamic(verifyOptionsFn VerifyOptionFunc, user UserConversion) *Authenti
 }
 
 // AuthenticateRequest authenticates the request using presented client certificates
+// AuthenticateRequest ClientCA 认证实现 (kube-apiserver 通过指定 --client-ca-file 参数启用 ClientCA 认证)
 func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
 		return nil, false, nil
@@ -150,6 +151,8 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 
 	remaining := req.TLS.PeerCertificates[0].NotAfter.Sub(time.Now())
 	clientCertificateExpirationHistogram.Observe(remaining.Seconds())
+	// 在进行 ClientCA 认证时, 通过 req.TLS.PeerCertificates[0].Verify 验证证书, 如果是 CA 签名过的
+	// 证书, 都可通过验证.
 	chains, err := req.TLS.PeerCertificates[0].Verify(optsCopy)
 	if err != nil {
 		return nil, false, fmt.Errorf(

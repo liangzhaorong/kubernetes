@@ -41,3 +41,11 @@ import (
 	_ "k8s.io/kubernetes/pkg/apis/scheduling/install"
 	_ "k8s.io/kubernetes/pkg/apis/storage/install"
 )
+
+// 注册 Kubernetes 所支持的资源:
+//
+// kube-apiserver 启动时导入了 "k8s.io/kubernetes/pkg/controlplane" 包, controlplane 包中的
+// import_known_version.go 文件调用了 Kubernetes 资源下的 install 包, 通过导入包的机制触发初
+// 始化函数.
+//
+// 每个 Kubernetes 内部版本资源都定义 install 包, 用于在 kube-apiserver 启动时注册资源.

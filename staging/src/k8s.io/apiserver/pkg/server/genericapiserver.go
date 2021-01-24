@@ -58,6 +58,7 @@ import (
 )
 
 // Info about an API group.
+// 一个资源组对应一个 APIGroupInfo 对象, 每个资源（包括子资源）对应一个资源存储对象.
 type APIGroupInfo struct {
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
@@ -523,12 +524,18 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 		}
 
 		s.DiscoveryGroupManager.AddGroup(apiGroup)
+
+		// 调用 restful.Container.Add 函数将 WebService 添加到 go-restful Container 中
 		s.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.Serializer, apiGroup).WebService())
 	}
 	return nil
 }
 
 // Exposes the given api group in the API.
+// InstallAPIGroup 注册 APIGroupInfo 的过程非常重要, 将 APIGroupInfo 对象中的 <资源组>/<资源版本>/<资源>/<子资源>
+// (包括资源存储对象) 注册到 APIExtensionsServerHandler 函数. 其过程是遍历 APIGroupInfo, 将 <资源组>/<资源版本>/<资源名称>
+// 映射到 HTTP PATH 请求路径, 通过 InstallREST 函数将资源存储对象作为资源的 Handlers 方法, 最后使用 go-restful 的
+// ws.Route 将定义好的请求路径和 Handlers 方法添加路由到 go-restful 中.
 func (s *GenericAPIServer) InstallAPIGroup(apiGroupInfo *APIGroupInfo) error {
 	return s.InstallAPIGroups(apiGroupInfo)
 }

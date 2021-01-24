@@ -667,9 +667,11 @@ func (n nodeAddressProvider) externalAddresses() ([]string, error) {
 }
 
 // DefaultAPIResourceConfigSource returns default configuration for an APIResource.
+// DefaultAPIResourceConfigSource 将启用资源版本为 Stable 和 Beta 的资源, 默认不启用 Alpha 资源版本的资源.
 func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret := serverstorage.NewResourceConfig()
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha versions in the list.
+	// 通过 EnableVersions 函数启用指定资源
 	ret.EnableVersions(
 		admissionregistrationv1.SchemeGroupVersion,
 		admissionregistrationv1beta1.SchemeGroupVersion,
@@ -710,6 +712,7 @@ func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 		extensionsapiv1beta1.SchemeGroupVersion.WithResource("ingresses"),
 	)
 	// disable alpha versions explicitly so we have a full list of what's possible to serve
+	// 而通过 DisableVersions 函数禁用指定资源
 	ret.DisableVersions(
 		apiserverinternalv1alpha1.SchemeGroupVersion,
 		batchapiv2alpha1.SchemeGroupVersion,

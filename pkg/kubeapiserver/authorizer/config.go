@@ -68,6 +68,12 @@ type Config struct {
 
 // New returns the right sort of union of multiple authorizer.Authorizer objects
 // based on the authorizationMode or an error.
+//
+// New 函数在实例化授权器的过程中, 会根据 --authorization-mode 参数的配置信息（由 flags 命令行参数传入）决定是否启用
+// 授权方法, 并对启用的授权方法生成对应的 HTTP Handler 函数, 最后通过 union 函数将已启用的授权器合并到 authorizers
+// 数组对象中.
+// 当客户端请求到达 kube-apiserver 时, kube-apiserver 会遍历授权器列表, 并按照顺序执行授权器, 排在前面的授权器具有
+// 更高的优先级(允许或拒绝请求). 客户端发起一个请求, 在经过授权阶段时, 只要有一个授权器通过, 则授权成功.
 func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, error) {
 	if len(config.AuthorizationModes) == 0 {
 		return nil, nil, fmt.Errorf("at least one authorization mode must be passed")
@@ -139,5 +145,7 @@ func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, erro
 		}
 	}
 
+	// authorizers 中存放的是已启用的授权器列表, ruleResolvers 中存放的是已启用的授权器规则解析器, 实际上分别将它们
+	// 存放在 union 结构的 []authorizer.Authorizer 和 []authorizer.RuleResolver 对象中.
 	return union.New(authorizers...), union.NewRuleResolvers(ruleResolvers...), nil
 }

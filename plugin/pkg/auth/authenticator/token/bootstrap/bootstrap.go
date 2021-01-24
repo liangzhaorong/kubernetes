@@ -90,6 +90,7 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 //     ( token-id ).( token-secret )
 //
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	// 通过 ParseToken 解析 Token ID 和 Token Secret, 验证 Token Secret 中的 Expire（过期）、Data、Type 等
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
 	if err != nil {
 		// Token isn't of the correct form, ignore it.

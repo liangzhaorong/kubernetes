@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// TokenAuthenticator TokenAuth 认证
 type TokenAuthenticator struct {
 	tokens map[string]*user.DefaultInfo
 }
@@ -90,7 +91,10 @@ func NewCSV(path string) (*TokenAuthenticator, error) {
 	}, nil
 }
 
+// AuthenticateToken Token 认证实现
 func (a *TokenAuthenticator) AuthenticateToken(ctx context.Context, value string) (*authenticator.Response, bool, error) {
+	// 在进行 Token 认证时, a.tokens 中存储了服务端的 Token 列表, 通过 a.tokens 查询客户端提供的 Token,
+	// 如果查询不到, 则认证失败返回 false.
 	user, ok := a.tokens[value]
 	if !ok {
 		return nil, false, nil

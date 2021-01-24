@@ -33,10 +33,18 @@ import (
 // The config parameter provides an io.Reader handler to the factory in
 // order to load specific configurations. If no configuration is provided
 // the parameter is nil.
+//
+// Factory 为准入控制器实现的接口定义, 它接收准入控制器的 config 配置信息, 通过 --adminssion-control-config-file
+// 参数指定准入控制器的配置文件, 返回准入控制器的插件实现.
 type Factory func(config io.Reader) (Interface, error)
 
+// Plugins kube-apiserver 在启动时注册所有准入控制器, 准入控制器通过 Plugins 数据结构
+// 统一注册、存放、管理所有的准入控制器.
 type Plugins struct {
+	// 用于保护 registry 字段的并发一致性
 	lock     sync.Mutex
+	// 以键值对形式存放插件, key 为准入控制器的名称, 如 AlwaysPullImages、LimitRanger 等;
+	// value 为对应的准入控制器名称的代码实现.
 	registry map[string]Factory
 }
 
@@ -69,6 +77,7 @@ func (ps *Plugins) Registered() []string {
 
 // Register registers a plugin Factory by name. This
 // is expected to happen during app startup.
+// Register 注册一个名为 name 的准入控制器插件 plugin
 func (ps *Plugins) Register(name string, plugin Factory) {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()

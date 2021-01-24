@@ -58,6 +58,7 @@ type subjectAccessReviewer interface {
 	Create(context.Context, *authorizationv1.SubjectAccessReview, metav1.CreateOptions) (*authorizationv1.SubjectAccessReview, error)
 }
 
+// WebhookAuthorizer Webhook 授权器实现
 type WebhookAuthorizer struct {
 	subjectAccessReview subjectAccessReviewer
 	responseCache       *cache.LRUExpireCache

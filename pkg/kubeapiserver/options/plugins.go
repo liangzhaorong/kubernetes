@@ -61,6 +61,7 @@ import (
 )
 
 // AllOrderedPlugins is the list of all the plugins in order.
+// AllOrderedPlugins 是所有按序排列的准入控制器名称列表
 var AllOrderedPlugins = []string{
 	admit.PluginName,                        // AlwaysAdmit
 	autoprovision.PluginName,                // NamespaceAutoProvision
@@ -105,6 +106,7 @@ var AllOrderedPlugins = []string{
 
 // RegisterAllAdmissionPlugins registers all admission plugins and
 // sets the recommended plugins order.
+// RegisterAllAdmissionPlugins 按序注册所有的准入控制器
 func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	admit.Register(plugins) // DEPRECATED as no real meaning
 	alwayspullimages.Register(plugins)

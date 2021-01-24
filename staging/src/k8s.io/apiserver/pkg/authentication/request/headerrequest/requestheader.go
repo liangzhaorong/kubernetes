@@ -155,11 +155,14 @@ func NewDynamicVerifyOptionsSecure(verifyOptionFn x509request.VerifyOptionFunc, 
 }
 
 func (a *requestHeaderAuthRequestHandler) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
+	// 通过 headerValue 函数从请求头中读取所有的用户信息
 	name := headerValue(req.Header, a.nameHeaders.Value())
 	if len(name) == 0 {
 		return nil, false, nil
 	}
+	// 再通过 allHeaderValues 读取所有组的信息
 	groups := allHeaderValues(req.Header, a.groupHeaders.Value())
+	// 最后通过 newExtra 读取所有额外的信息
 	extra := newExtra(req.Header, a.extraHeaderPrefixes.Value())
 
 	// clear headers used for authentication

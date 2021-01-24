@@ -233,6 +233,7 @@ func JWTTokenAuthenticator(iss string, keys []interface{}, implicitAuds authenti
 	}
 }
 
+// jwtTokenAuthenticator 是 ServiceAccountAuth 认证的实现结构体.
 type jwtTokenAuthenticator struct {
 	iss          string
 	keys         []interface{}
@@ -260,6 +261,7 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 		return nil, false, nil
 	}
 
+	// 解析出 JWT 对象
 	tok, err := jwt.ParseSigned(tokenData)
 	if err != nil {
 		return nil, false, nil
@@ -307,6 +309,7 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 
 	// If we get here, we have a token with a recognized signature and
 	// issuer string.
+	// 验证签名及 Token, 验证命名空间是否正确, 验证 ServiceAccountName、ServiceAccountUID 是否存在, 验证 Token 是否失效等
 	sa, err := j.validator.Validate(ctx, tokenData, public, private)
 	if err != nil {
 		return nil, false, err

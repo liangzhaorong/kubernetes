@@ -92,6 +92,9 @@ type Config struct {
 
 // New returns an authenticator.Request or an error that supports the standard
 // Kubernetes authentication mechanisms.
+//
+// New 函数在实例化认证器的过程中, 会根据认证的配置信息（由 flags 命令行参数传入）决定是否启用认证方法, 并对启用的认证
+// 方法生成对应的 HTTP handler 函数, 最后通过 union 函数将已启用的认证器合并到 authenticators 数组对象中.
 func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, error) {
 	var authenticators []authenticator.Request
 	var tokenAuthenticators []authenticator.Token
@@ -201,6 +204,10 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		return nil, &securityDefinitions, nil
 	}
 
+	// authenticators 中存放的是已启用的认证器列表. union.New 函数将 authenticators 合并成一个 authenticator
+	// 认证器, 实际上将认证器列表存放在 union 结构的 Handlers []authenticator.Request 对象中. 当客户端请求到达
+	// kube-apiserver 时, kube-apiserver 会遍历认证器列表, 尝试执行每个认证器, 当有一个认证器返回 true 时, 则
+	// 认证成功.
 	authenticator := union.New(authenticators...)
 
 	authenticator = group.NewAuthenticatedGroupAdder(authenticator)

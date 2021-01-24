@@ -51,6 +51,15 @@ type tokenReviewer interface {
 	Create(ctx context.Context, review *authenticationv1.TokenReview, _ metav1.CreateOptions) (*authenticationv1.TokenReview, error)
 }
 
+// WebhookTokenAuth 认证
+// Webhook 也被称为钩子, 是一种基于 HTTP 协议的回调机制, 当客户端发送的认证请求到达 kube-apiserver 时,
+// kube-apiserver 回调钩子方法, 将验证信息发送给远程的 Webhook 服务器进行认证, 然后根据 Webhook 服务器
+// 返回的状态码来判断是否认证成功.
+//
+// kube-apiserver 通过指定如下参数开启 WebhookTokenAuth 认证:
+//   - --authentication-token-webhook-config-file: Webhook 配置文件描述了如何访问远程 Webhook 服务.
+//   - --authentication-token-webhook-cache-ttl: 缓存认证时间, 默认值 2m.
+
 type WebhookTokenAuthenticator struct {
 	tokenReview  tokenReviewer
 	retryBackoff wait.Backoff
@@ -108,6 +117,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 		auds   authenticator.Audiences
 	)
 	webhook.WithExponentialBackoff(ctx, w.retryBackoff, func() error {
+		// 向远程的 Webhook 服务器发送 Post 请求, 并在请求体（Body）中携带认证信息.
 		result, err = w.tokenReview.Create(ctx, r, metav1.CreateOptions{})
 		return err
 	}, webhook.DefaultShouldRetry)
@@ -128,6 +138,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 		}
 	}
 
+	// 在验证 Webhook 服务器认证之后, 返回的 Status.Authenticated 为 true, 表示认证成功
 	r.Status = result.Status
 	if !r.Status.Authenticated {
 		var err error

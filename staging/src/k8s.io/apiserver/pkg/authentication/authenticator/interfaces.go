@@ -25,6 +25,7 @@ import (
 
 // Token checks a string value against a backing authentication store and
 // returns a Response or an error if the token could not be checked.
+// Token 认证接口定义
 type Token interface {
 	AuthenticateToken(ctx context.Context, token string) (*Response, bool, error)
 }

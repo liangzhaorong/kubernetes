@@ -26,7 +26,7 @@ import (
 // unionAuthRequestHandler authenticates requests using a chain of authenticator.Requests
 type unionAuthRequestHandler struct {
 	// Handlers is a chain of request authenticators to delegate to
-	Handlers []authenticator.Request
+	Handlers []authenticator.Request // 认证器列表
 	// FailOnError determines whether an error returns short-circuits the chain
 	FailOnError bool
 }
@@ -50,6 +50,7 @@ func NewFailOnError(authRequestHandlers ...authenticator.Request) authenticator.
 }
 
 // AuthenticateRequest authenticates the request using a chain of authenticator.Request objects.
+// AuthenticateRequest 遍历所有已启用的认证器列表并执行每个认证器.
 func (authHandler *unionAuthRequestHandler) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	var errlist []error
 	for _, currAuthRequestHandler := range authHandler.Handlers {

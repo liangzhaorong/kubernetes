@@ -55,6 +55,14 @@ func Register(plugins *admission.Plugins) {
 	})
 }
 
+// PodNodeSelector 准入控制器通过读取命名空间注释和准入控制器配置文件来限制 Pod 资源对象可在
+// 命名空间内使用的节点选择器. PodNodeSelector 准入控制器会对拦截的 kube-apiserver 请求中的
+// Pod 资源对象进行修改, 将节点选择器与 Pod 资源对象的节点选择器进行合并并赋值给 Pod 资源对象
+// 的节点选择器(即 pod.Spec.NodeSelector).
+//
+// Pod 资源对象的节点选择器 (即 pod.Spec.NodeSelector) 必须为 true, 才能使 Pod 资源对象选择
+// 到合适的节点.
+
 // Plugin is an implementation of admission.Interface.
 type Plugin struct {
 	*admission.Handler
@@ -98,24 +106,32 @@ func readConfig(config io.Reader) *pluginConfig {
 
 // Admit enforces that pod and its namespace node label selectors matches at least a node in the cluster.
 func (p *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) error {
+	// 忽略 Pod 以外的资源
 	if shouldIgnore(a) {
 		return nil
 	}
+	// 判断该准入控制器是否已完成初始化
 	if !p.WaitForReady() {
 		return admission.NewForbidden(a, fmt.Errorf("not yet ready to handle request"))
 	}
 
 	resource := a.GetResource().GroupResource()
 	pod := a.GetObject().(*api.Pod)
+	// 通过 p.getNamespaceNodeSelectorMap 函数选择节点选择器 (namespaceNodeSelector), 它是通过读取
+	// 命名空间注释和配置文件来选择节点选择器的.
 	namespaceNodeSelector, err := p.getNamespaceNodeSelectorMap(a.GetNamespace())
 	if err != nil {
 		return err
 	}
 
+	// 通过 labels.Conflicts 判断节点选择器与资源对象的节点选择器是否存在冲突. 如果存在冲突, 则通过
+	// errors.NewForbidden 返回 HTTP 403 Forbidden;
 	if labels.Conflicts(namespaceNodeSelector, labels.Set(pod.Spec.NodeSelector)) {
 		return errors.NewForbidden(resource, pod.Name, fmt.Errorf("pod node label selector conflicts with its namespace node label selector"))
 	}
 
+	// 如果不存在冲突, 则通过 labels.Merge 将节点选择器与资源对象的节点选择器进行合并并赋值给
+	// Pod 资源对象的节点选择器(即 pod.Spec.NodeSelector).
 	// Merge pod node selector = namespace node selector + current pod node selector
 	// second selector wins
 	podNodeSelectorLabels := labels.Merge(namespaceNodeSelector, pod.Spec.NodeSelector)
@@ -124,6 +140,7 @@ func (p *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 }
 
 // Validate ensures that the pod node selector is allowed
+// Validate 执行完 PodNodeSelector 准入控制器变更操作 Admit 以后执行该 Validate 验证操作.
 func (p *Plugin) Validate(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) error {
 	if shouldIgnore(a) {
 		return nil
@@ -139,6 +156,7 @@ func (p *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 	if err != nil {
 		return err
 	}
+	// 验证 pod.Spec.NodeSelector 资源对象的节点选择器是否与准入控制器配置文件中定义的节点选择器存在冲突.
 	if labels.Conflicts(namespaceNodeSelector, labels.Set(pod.Spec.NodeSelector)) {
 		return errors.NewForbidden(resource, pod.Name, fmt.Errorf("pod node label selector conflicts with its namespace node label selector"))
 	}
@@ -155,6 +173,7 @@ func (p *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 	return nil
 }
 
+// getNamespaceNodeSelectorMap 择节点选择器 (namespaceNodeSelector), 它是通过读取命名空间注释和配置文件来选择节点选择器的.
 func (p *Plugin) getNamespaceNodeSelectorMap(namespaceName string) (labels.Set, error) {
 	namespace, err := p.namespaceLister.Get(namespaceName)
 	if errors.IsNotFound(err) {
@@ -192,6 +211,7 @@ func shouldIgnore(a admission.Attributes) bool {
 }
 
 // NewPodNodeSelector initializes a podNodeSelector
+// NewPodNodeSelector 初始化一个 podNodeSelector 准入控制器实例
 func NewPodNodeSelector(clusterNodeSelectors map[string]string) *Plugin {
 	return &Plugin{
 		Handler:              admission.NewHandler(admission.Create),
@@ -236,6 +256,8 @@ func (p *Plugin) getNodeSelectorMap(namespace *corev1.Namespace) (labels.Set, er
 	found := false
 	if len(namespace.ObjectMeta.Annotations) > 0 {
 		for _, annotation := range NamespaceNodeSelectors {
+			// 如果命名空间中具有带键的注释(即 "scheduler.alpha.kubernetes.io/node-selector"),
+			// 则将其值用作节点选择器
 			if ns, ok := namespace.ObjectMeta.Annotations[annotation]; ok {
 				labelsMap, err := labels.ConvertSelectorToLabelsMap(ns)
 				if err != nil {
@@ -252,6 +274,8 @@ func (p *Plugin) getNodeSelectorMap(namespace *corev1.Namespace) (labels.Set, er
 		}
 	}
 	if !found {
+		// 如果命名空间中没有这样的注释 (即 "scheduler.alpha.kubernetes.io/node-selector"), 则使用准入控制器
+		// 配置文件中定义的 clusterDefaultNodeSelector 作为节点选择器.
 		selector, err = labels.ConvertSelectorToLabelsMap(p.clusterNodeSelectors["clusterDefaultNodeSelector"])
 		if err != nil {
 			return labels.Set{}, err
