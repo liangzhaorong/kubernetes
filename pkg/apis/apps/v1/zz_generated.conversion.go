@@ -33,6 +33,9 @@ import (
 	apiscorev1 "k8s.io/kubernetes/pkg/apis/core/v1"
 )
 
+// zz_generated.conversion.go: 定义了资源的转换函数 (自动生成的转换函数), 并将生成的转换函数注册到资源注册表中.
+// 该文件由代码生成器自动生成.
+
 func init() {
 	localSchemeBuilder.Register(RegisterConversions)
 }

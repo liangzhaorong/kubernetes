@@ -79,6 +79,8 @@ type Scheduler struct {
 	StopEverything <-chan struct{}
 
 	// SchedulingQueue holds pods to be scheduled
+	// 调度队列, 存储了待调度 Pod 资源对象. 调度队列的实现有两种方式, 分别是 FIFO(先进先出队列) 和
+	// PriorityQueue(优先级队列). 其中优先级队列根据 Pod 资源对象的优先级进行排序, 优先级越高的排得越前.
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.
@@ -228,6 +230,7 @@ func New(client clientset.Interface,
 
 	metrics.Register()
 
+	// 实例化调度算法函数
 	var sched *Scheduler
 	source := options.schedulerAlgorithmSource
 	switch {
@@ -267,6 +270,7 @@ func New(client clientset.Interface,
 	sched.StopEverything = stopEverything
 	sched.client = client
 
+	// 为所有 Informer 对象添加对资源事件的监控并设置回调函数
 	addAllEventHandlers(sched, informerFactory)
 	return sched, nil
 }
@@ -310,6 +314,7 @@ func initPolicyFromConfigMap(client clientset.Interface, policyRef *schedulerapi
 // Run begins watching and scheduling. It starts scheduling and blocked until the context is done.
 func (sched *Scheduler) Run(ctx context.Context) {
 	sched.SchedulingQueue.Run()
+	// sched.scheduleOne 是 kube-scheduler 组件的调度主逻辑, 它通过 wait.UntilWithContext 定时器执行.
 	wait.UntilWithContext(ctx, sched.scheduleOne, 0)
 	sched.SchedulingQueue.Close()
 }
@@ -427,6 +432,8 @@ func (sched *Scheduler) finishBinding(fwk framework.Framework, assumed *v1.Pod, 
 
 // scheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting.
 func (sched *Scheduler) scheduleOne(ctx context.Context) {
+	// 从优先级队列中获取一个优先级最高的待调度的 Pod 资源对象, 该过程是阻塞模式的, 当优先级队列中
+	// 不存在任何 Pod 资源对象时, sched.NextPod 函数处于等待状态.
 	podInfo := sched.NextPod()
 	// pod could be nil when schedulerQueue is closed
 	if podInfo == nil || podInfo.Pod == nil {
@@ -452,6 +459,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	state.SetRecordPluginMetrics(rand.Intn(100) < pluginMetricsSamplePercent)
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// 执行预选调度算法和优选调度算法, 为 Pod 资源对象选择一个合适的节点.
 	scheduleResult, err := sched.Algorithm.Schedule(schedulingCycleCtx, fwk, state, pod)
 	if err != nil {
 		// Schedule() may have failed because the pod would not fit on any host, so we try to

@@ -41,5 +41,7 @@ func init() {
 	// We only register manually written functions here. The registration of the
 	// generated functions takes place in the generated files. The separation
 	// makes the code compile even when the generated files are missing.
+	//
+	// 注册资源的默认值函数和内外部版本间转换的默认转换函数
 	localSchemeBuilder.Register(addDefaultingFuncs, addConversionFuncs)
 }

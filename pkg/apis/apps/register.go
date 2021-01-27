@@ -22,6 +22,8 @@ import (
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 )
 
+// register.go: 定义了资源组、资源版本及资源的注册信息
+
 var (
 	// SchemeBuilder stores functions to add things to a scheme.
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
@@ -30,9 +32,11 @@ var (
 )
 
 // GroupName is the group name use in this package
+// GroupName 当前 package 使用的资源组名称
 const GroupName = "apps"
 
 // SchemeGroupVersion is group version used to register these objects
+// SchemeGroupVersion 定义当前 package 所属的资源组和资源版本. 内部版本资源对象通过 runtime.APIVersionInternal 标识
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
 
 // Kind takes an unqualified kind and returns a Group qualified GroupKind
@@ -46,6 +50,7 @@ func Resource(resource string) schema.GroupResource {
 }
 
 // Adds the list of known types to the given scheme.
+// addKnownTypes 将当前指定资源组/资源版本下的所有资源注册到 scheme 资源注册表中
 func addKnownTypes(scheme *runtime.Scheme) error {
 	// TODO this will get cleaned up with the scheme types are fixed
 	scheme.AddKnownTypes(SchemeGroupVersion,

@@ -34,22 +34,33 @@ var DefaultNameFunc = func(t reflect.Type) string { return t.Name() }
 // or pointers if necessary. It should return an error if the object cannot be converted
 // or if some data is invalid. If you do not wish a and b to share fields or nested
 // objects, you must copy a before calling this function.
+//
+// ConversionFunc 类型函数定义了转换函数实现的结构, 将资源对象 a 转换为资源对象 b. a 参数定义了转换源（即 source）
+// 的资源类型, b 参数定义了转换目标（即 dest）的资源类型. scope 定义了多次转换机制 (即递归调用转换函数)
 type ConversionFunc func(a, b interface{}, scope Scope) error
 
 // Converter knows how to convert one type to another.
+// Converter 转换器数据结构主要存放转换函数（即 Vonversion Funcs）
 type Converter struct {
 	// Map from the conversion pair to a function which can
 	// do the conversion.
+	// 默认转换函数. 这些转换函数一般定义在资源目录下的 conversion.go 代码文件中
 	conversionFuncs          ConversionFuncs
+	// 自动生成的转换函数. 这些转换函数一般定义在资源目录下的 zz_generated.conversion.go 代码文件中, 是由
+	// 代码器自动生成的转换函数.
 	generatedConversionFuncs ConversionFuncs
 
 	// Set of conversions that should be treated as a no-op
+	// 若资源对象注册到此字段, 则忽略此资源对象的转换操作
 	ignoredConversions        map[typePair]struct{}
 	ignoredUntypedConversions map[typePair]struct{}
 
 	// nameFunc is called to retrieve the name of a type; this name is used for the
 	// purpose of deciding whether two types match or not (i.e., will we attempt to
 	// do a conversion). The default returns the go type name.
+	//
+	// 在转换过程中其用于获取资源种类的名称, 该函数被定义在
+	// vendor/k8s.io/apimachinery/pkg/runtime/scheme.go 文件中.
 	nameFunc func(t reflect.Type) string
 }
 

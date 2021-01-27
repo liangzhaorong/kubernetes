@@ -63,6 +63,7 @@ type PodStorage struct {
 
 // REST implements a RESTStorage for pods
 type REST struct {
+	// REST 继承了 genericregistry.Store, 该对象可以管理存储（Storage）的增、删、改、查操作
 	*genericregistry.Store
 	proxyTransport http.RoundTripper
 }

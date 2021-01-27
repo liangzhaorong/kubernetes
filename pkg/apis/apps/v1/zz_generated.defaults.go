@@ -28,6 +28,9 @@ import (
 	corev1 "k8s.io/kubernetes/pkg/apis/core/v1"
 )
 
+// zz_generated.default.go: 定义了资源的默认值函数 (自动生成的默认值函数), 并将生成的默认值函数注册到资源注册表中.
+// 该文件由代码生成器自动生成.
+
 // RegisterDefaults adds defaulters functions to the given scheme.
 // Public to allow building arbitrary schemes.
 // All generated defaulters are covering - they call all nested defaulters.

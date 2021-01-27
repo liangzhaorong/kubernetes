@@ -27,8 +27,12 @@ import (
 	"k8s.io/kubernetes/pkg/apis/core"
 )
 
+// conversion.go: 定义当前外部版本的资源的转换函数(默认转换函数), 并将默认转换函数注册到资源注册表中.
+
 // Convert_apps_DeploymentSpec_To_v1_DeploymentSpec is defined here, because public
 // conversion is not auto-generated due to existing warnings.
+//
+// Convert_apps_DeploymentSpec_To_v1_DeploymentSpec 将内部版本的 DeploymentSpec 转换为外部版本的 DeploymentSpec.
 func Convert_apps_DeploymentSpec_To_v1_DeploymentSpec(in *apps.DeploymentSpec, out *appsv1.DeploymentSpec, s conversion.Scope) error {
 	if err := autoConvert_apps_DeploymentSpec_To_v1_DeploymentSpec(in, out, s); err != nil {
 		return err
@@ -36,6 +40,7 @@ func Convert_apps_DeploymentSpec_To_v1_DeploymentSpec(in *apps.DeploymentSpec, o
 	return nil
 }
 
+// 将外部版本的 Deployment 转换为内部版本的 Deployment
 func Convert_v1_Deployment_To_apps_Deployment(in *appsv1.Deployment, out *apps.Deployment, s conversion.Scope) error {
 	if err := autoConvert_v1_Deployment_To_apps_Deployment(in, out, s); err != nil {
 		return err

@@ -17,3 +17,6 @@ limitations under the License.
 // +k8s:deepcopy-gen=package
 
 package apps // import "k8s.io/kubernetes/pkg/apis/apps"
+
+// doc.go: GoDoc 文件, 定义了当前包的注释信息. 在 Kubernetes 资源包中, 它还担当了
+// 代码生成器的全局 Tags 描述文件.

@@ -92,6 +92,7 @@ type GroupVersionKindProvider interface {
 }
 
 // Lister is an object that can retrieve resources that match the provided field and label criteria.
+// Lister 资源对象获取接口（多个资源对象）
 type Lister interface {
 	// NewList returns an empty object that can be used with the List call.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -113,6 +114,7 @@ type Exporter interface {
 }
 
 // Getter is an object that can retrieve a named RESTful resource.
+// Getter 资源对象获取接口(单个资源对象)
 type Getter interface {
 	// Get finds a resource in the storage by name and returns it.
 	// Although it can return an arbitrary error value, IsNotFound(err) is true for the
@@ -179,6 +181,7 @@ type CollectionDeleter interface {
 }
 
 // Creater is an object that can create an instance of a RESTful object.
+// Creater 资源对象创建接口
 type Creater interface {
 	// New returns an empty object that can be used with Create after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -234,6 +237,7 @@ func ValidateAllObjectUpdateFunc(ctx context.Context, obj, old runtime.Object) e
 }
 
 // Updater is an object that can update an instance of a RESTful object.
+// Updater 资源对象更新接口(完整资源对象的更新)
 type Updater interface {
 	// New returns an empty object that can be used with Update after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -256,6 +260,7 @@ type CreaterUpdater interface {
 var _ Updater = CreaterUpdater(nil)
 
 // Patcher is a storage object that supports both get and update.
+// Patcher 资源对象更新接口(局部资源对象的更新)
 type Patcher interface {
 	Getter
 	Updater
@@ -263,6 +268,7 @@ type Patcher interface {
 
 // Watcher should be implemented by all Storage objects that
 // want to offer the ability to watch for changes through the watch api.
+// Watcher 资源对象监控接口
 type Watcher interface {
 	// 'label' selects on labels; 'field' selects on the object's fields. Not all fields
 	// are supported; an error should be returned if 'field' tries to select on a field that

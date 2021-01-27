@@ -20,6 +20,8 @@ package runtime
 // code to compile without explicitly referencing generated types. You should
 // declare one in each package that will have generated deep copy or conversion
 // functions.
+//
+// SchemeBuilder 中存储的是一个个的 addKnownTypes 函数, 该函数负责把当前版本下的资源注册到 scheme 中
 type SchemeBuilder []func(*Scheme) error
 
 // AddToScheme applies all the stored functions to the scheme. A non-nil error

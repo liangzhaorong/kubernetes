@@ -206,9 +206,13 @@ func gvkWithDefaults(actual, defaultGVK schema.GroupVersionKind) schema.GroupVer
 // If into is nil or data's gvk different from into's gvk, it will generate a new Object with ObjectCreater.New(gvk)
 // On success or most errors, the method will return the calculated schema kind.
 // The gvk calculate priority will be originalData > default gvk > into
+//
+// Decode 支持两种格式的反序列操作, YAML/JSON.
 func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
 	data := originalData
 	if s.options.Yaml {
+		// 若为 YAML 格式, 则直接将 JSON 格式数据转换为资源对象并填充到 data 中,
+		// 此时, 无论是反序列化操作的是 YAML 格式还是 JSON 格式, data 字段中都是 JSON 格式数据.
 		altered, err := yaml.YAMLToJSON(data)
 		if err != nil {
 			return nil, nil, err
@@ -216,6 +220,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		data = altered
 	}
 
+	// 从 JSON 数据中提取出资源对象的 metav1.TypeMeta (即 APIVersion 和 Kind 字段)
 	actual, err := s.meta.Interpret(data)
 	if err != nil {
 		return nil, nil, err
@@ -261,6 +266,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		return nil, actual, err
 	}
 
+	// 通过该函数(即 json-iterator) 将 JSON 数据反序列化
 	if err := caseSensitiveJSONIterator.Unmarshal(data, obj); err != nil {
 		return nil, actual, err
 	}
@@ -301,12 +307,16 @@ func (s *Serializer) Encode(obj runtime.Object, w io.Writer) error {
 	return s.doEncode(obj, w)
 }
 
+// doEncode 将资源对象编码为指定格式 JSON/YAML
 func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
+	// 若要将资源对象编码为 YAML 格式
 	if s.options.Yaml {
+		// 通过该函数将资源对象转换为 JSON 格式
 		json, err := caseSensitiveJSONIterator.Marshal(obj)
 		if err != nil {
 			return err
 		}
+		// 将 JSON 格式转换为 YAML 格式并返回数据
 		data, err := yaml.JSONToYAML(json)
 		if err != nil {
 			return err
@@ -315,7 +325,9 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 		return err
 	}
 
+	// 若为 JSON 格式且开启了 pretty
 	if s.options.Pretty {
+		// 调用该函数优化 JSON 格式
 		data, err := caseSensitiveJSONIterator.MarshalIndent(obj, "", "  ")
 		if err != nil {
 			return err
@@ -323,6 +335,7 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 		_, err = w.Write(data)
 		return err
 	}
+	// 将资源对象转换为 JSON 格式
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(obj)
 }

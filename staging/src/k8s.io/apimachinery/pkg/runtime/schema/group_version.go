@@ -54,8 +54,8 @@ func ParseKindArg(arg string) (*GroupVersionKind, GroupKind) {
 // GroupResource specifies a Group and a Resource, but does not force a version.  This is useful for identifying
 // concepts during lookup stages without having partially valid types
 type GroupResource struct {
-	Group    string
-	Resource string
+	Group    string // 资源组
+	Resource string // 资源
 }
 
 func (gr GroupResource) WithVersion(version string) GroupVersionResource {

@@ -192,15 +192,19 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 	cc.InformerFactory.Start(ctx.Done())
 
 	// Wait for all caches to sync before scheduling.
+	// 在正式启动 Scheduler 调度器前, 须等待所有运行中的 Informer 的数据同步, 使本地缓存数据与
+	// Etcd 集群中的数据保持一致.
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
 
 	// If leader election is enabled, runCommand via LeaderElector until done and exit.
 	if cc.LeaderElection != nil {
 		cc.LeaderElection.Callbacks = leaderelection.LeaderCallbacks{
+			// OnStartedLeading 函数是当前节点领导者选举成功后回调的函数, 该函数定义了 kube-scheduler 组件的主逻辑.
 			OnStartedLeading: func(ctx context.Context) {
 				close(waitingForLeader)
 				sched.Run(ctx)
 			},
+			// OnStoppedLeading 函数是当前节点领导者被抢占后回调的函数, 在领导者被抢占后, 会退出当前的 kube-scheduler 进程.
 			OnStoppedLeading: func() {
 				klog.Fatalf("leaderelection lost")
 			},
@@ -210,6 +214,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 			return fmt.Errorf("couldn't create leader elector: %v", err)
 		}
 
+		// 该函数会一直尝试使节点成为领导者
 		leaderElector.Run(ctx)
 
 		return fmt.Errorf("lost lease")
@@ -297,6 +302,7 @@ func WithPlugin(name string, factory runtime.PluginFactory) Option {
 
 // Setup creates a completed config and a scheduler based on the command args and options
 func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions ...Option) (*schedulerserverconfig.CompletedConfig, *scheduler.Scheduler, error) {
+	// 验证配置参数的合法性和可用性
 	if errs := opts.Validate(); len(errs) > 0 {
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}

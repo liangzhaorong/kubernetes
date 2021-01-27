@@ -173,7 +173,7 @@ func (p *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 	return nil
 }
 
-// getNamespaceNodeSelectorMap 择节点选择器 (namespaceNodeSelector), 它是通过读取命名空间注释和配置文件来选择节点选择器的.
+// getNamespaceNodeSelectorMap 获取节点选择器 (namespaceNodeSelector), 它是通过读取命名空间注释和配置文件来选择节点选择器的.
 func (p *Plugin) getNamespaceNodeSelectorMap(namespaceName string) (labels.Set, error) {
 	namespace, err := p.namespaceLister.Get(namespaceName)
 	if errors.IsNotFound(err) {

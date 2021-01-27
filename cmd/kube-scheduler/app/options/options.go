@@ -52,28 +52,43 @@ import (
 )
 
 // Options has all the params needed to run a Scheduler
+//
+// Options 是保存运行 Scheduler 所需的所有的参数.
 type Options struct {
 	// The default values. These are overridden if ConfigFile is set or by values in InsecureServing.
+	// 默认值. 如果设置了 ConfigFile 或 InsecureServing 中的值, 这些设置将被覆盖.
 	ComponentConfig kubeschedulerconfig.KubeSchedulerConfiguration
 
+	// HTTPS 服务相关参数
 	SecureServing           *apiserveroptions.SecureServingOptionsWithLoopback
+	// HTTP 服务相关参数
 	CombinedInsecureServing *CombinedInsecureServingOptions
+	// 认证相关参数
 	Authentication          *apiserveroptions.DelegatingAuthenticationOptions
+	// 授权相关参数
 	Authorization           *apiserveroptions.DelegatingAuthorizationOptions
+	// 指标监控相关参数
 	Metrics                 *metrics.Options
 	Logs                    *logs.Options
+	// 已弃用的参数
 	Deprecated              *DeprecatedOptions
 
 	// ConfigFile is the location of the scheduler server's configuration file.
+	//
+	// ConfigFile 指定 kube-scheduler 的配置文件的路径.
 	ConfigFile string
 
 	// WriteConfigTo is the path where the default configuration will be written.
+	//
+	// WriteConfigTo 是将写入默认配置的路径.
 	WriteConfigTo string
 
 	Master string
 }
 
 // NewOptions returns default scheduler app options.
+//
+// NewOptions 返回默认的 scheduler app 选项 Options 对象
 func NewOptions() (*Options, error) {
 	cfg, err := newDefaultComponentConfig()
 	if err != nil {

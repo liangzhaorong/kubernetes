@@ -24,6 +24,17 @@ import (
 )
 
 const (
+	// 在 Kubernetes 系统中, 同一资源对应着两个版本, 分别是外部版本和内部版本. 如 Deployment 资源, 它所属的外部版本
+	// 表现形式为 apps/v1, 内部版本表现形式为 apps/__internal.
+	//
+	// External Object: 外部版本资源对象, 也称为 Versioned Object (即拥有资源版本的资源对象). 外部版本用于对外暴露给
+	// 用户请求的接口所使用的资源对象. 如, 用户在通过 YAML/JSON 格式的描述文件创建资源对象时, 所使用的是外部版本的资源
+	// 对象. 外部版本的资源对象通过资源版本 (Alpha、Beta、Stable)进行标识.
+	//
+	// Internal Object: 内部版本资源对象. 内部版本不对外暴露, 仅在 Kubernetes API Server 内部使用. 内部版本用于多资源
+	// 版本的转换, 如将 v1beta1 版本转换为 v1 版本, 过程为 v1beta1->internal->v1. 内部版本资源对象通过 APIVersionInternal
+	// (即 "__internal") 进行标识.
+	//
 	// APIVersionInternal may be used if you are registering a type that should not
 	// be considered stable or serialized - it is a convention only and has no
 	// special behavior in this package.
@@ -83,6 +94,9 @@ type Decoder interface {
 
 // Serializer is the core interface for transforming objects into a serialized format and back.
 // Implementations may choose to perform conversion of the object, but no assumptions should be made.
+//
+// Serializer 序列化器, 包含序列化和反序列化操作. 序列化操作是将数据（如数组、对象或结构体等）转换为字符串的过程, 反序列
+// 化操作是将字符串转换为数据的过程.
 type Serializer interface {
 	Encoder
 	Decoder
@@ -91,6 +105,9 @@ type Serializer interface {
 // Codec is a Serializer that deals with the details of versioning objects. It offers the same
 // interface as Serializer, so this is a marker to consumers that care about the version of the objects
 // they receive.
+//
+// Codec 编解码器, 包含编码器和解码器. 编解码是一个通用术语, 指的是可以表示数据的任何格式, 或者将数据转换为特定格式的过程.
+// 所以, 可将 Serializer 序列化器看作 Codec 编解码器的一种.
 type Codec Serializer
 
 // ParameterCodec defines methods for serializing and deserializing API objects to url.Values and
@@ -296,8 +313,13 @@ type SelfLinker interface {
 // expected to be serialized to the wire, the interface an Object must provide to the Scheme allows
 // serializers to set the kind, version, and group the object is represented as. An Object may choose
 // to return a no-op ObjectKindAccessor in cases where it is not expected to be serialized.
+//
+// runtime.Object 是 Kubernetes 类型系统的基石. Kubernetes 上的所有资源对象都有一个共同的结构叫 runtime.Object.
+// Kubernetes 的任意资源对象都可通过 runtime.Object 存储它的类型并允许深复制操作.
 type Object interface {
+	// 用于设置并返回 GroupVersionKind
 	GetObjectKind() schema.ObjectKind
+	// 用于深复制当前资源对象并返回
 	DeepCopyObject() Object
 }
 
@@ -324,6 +346,7 @@ type CacheableObject interface {
 
 // Unstructured objects store values as map[string]interface{}, with only values that can be serialized
 // to JSON allowed.
+// Unstructured 非结构化数据的处理接口定义
 type Unstructured interface {
 	Object
 	// NewEmptyInstance returns a new instance of the concrete type containing only kind/apiVersion and no other data.

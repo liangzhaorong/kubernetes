@@ -23,6 +23,8 @@ import (
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
+// types.go: 定义了在当前资源组、资源版本下所支持的资源类型.
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // StatefulSet represents a set of pods with consistent identities.
