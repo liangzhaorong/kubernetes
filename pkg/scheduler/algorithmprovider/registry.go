@@ -44,14 +44,20 @@ import (
 )
 
 // ClusterAutoscalerProvider defines the default autoscaler provider
+// 定义默认的自动伸缩 provider
 const ClusterAutoscalerProvider = "ClusterAutoscalerProvider"
 
 // Registry is a collection of all available algorithm providers.
+//
+// Registry 存储所有可用的调度器算法实现器(providers)
 type Registry map[string]*schedulerapi.Plugins
 
 // NewRegistry returns an algorithm provider registry instance.
+// NewRegistry 返回调度器算法注册表实例 Registry
 func NewRegistry() Registry {
+	// 获取默认启用的插件列表配置
 	defaultConfig := getDefaultConfig()
+	// 应用启用的实验性插件
 	applyFeatureGates(defaultConfig)
 
 	caConfig := getClusterAutoscalerConfig()

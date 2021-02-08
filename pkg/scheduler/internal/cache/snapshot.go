@@ -26,15 +26,24 @@ import (
 
 // Snapshot is a snapshot of cache NodeInfo and NodeTree order. The scheduler takes a
 // snapshot at the beginning of each scheduling cycle and uses it for its operations in that cycle.
+//
+// Snapshot 是缓存 NodeInfo 和 NodeTree 顺序的快照（snapshot）. 调度器在调度周期开始时生成快照, 并将该快照用于
+// 该调度周期中的操作.
 type Snapshot struct {
 	// nodeInfoMap a map of node name to a snapshot of its NodeInfo.
 	nodeInfoMap map[string]*framework.NodeInfo
 	// nodeInfoList is the list of nodes as ordered in the cache's nodeTree.
+	//
+	// nodeInfoList 是缓存在 nodeTree 中按序排序的节点列表.
 	nodeInfoList []*framework.NodeInfo
 	// havePodsWithAffinityNodeInfoList is the list of nodes with at least one pod declaring affinity terms.
+	//
+	// havePodsWithAffinityNodeInfoList 是节点上至少有一个 pod 声明了亲和性的节点列表.
 	havePodsWithAffinityNodeInfoList []*framework.NodeInfo
 	// havePodsWithRequiredAntiAffinityNodeInfoList is the list of nodes with at least one pod declaring
 	// required anti-affinity terms.
+	//
+	// havePodsWithRequiredAntiAffinityNodeInfoList 是至少有一个 pod 声明了反亲和性的节点列表.
 	havePodsWithRequiredAntiAffinityNodeInfoList []*framework.NodeInfo
 	generation                                   int64
 }

@@ -91,6 +91,9 @@ func RecommendedDebuggingConfiguration(obj *DebuggingConfiguration) {
 
 // NewRecommendedDebuggingConfiguration returns the current recommended DebuggingConfiguration.
 // This may change between releases as recommendations shift.
+//
+// NewRecommendedDebuggingConfiguration 返回当前推荐的调试相关配置的 DebuggingConfiguration 对象.
+// 随着推荐的转变, 这个结构体在发行版间可能会有所改变.
 func NewRecommendedDebuggingConfiguration() *DebuggingConfiguration {
 	ret := &DebuggingConfiguration{}
 	RecommendedDebuggingConfiguration(ret)

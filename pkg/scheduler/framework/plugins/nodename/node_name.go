@@ -25,6 +25,7 @@ import (
 )
 
 // NodeName is a plugin that checks if a pod spec node name matches the current node.
+// NodeName 插件用于检查 pod 的 spec 中指定的节点名是否与当前节点名称匹配.
 type NodeName struct{}
 
 var _ framework.FilterPlugin = &NodeName{}

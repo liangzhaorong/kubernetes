@@ -35,11 +35,15 @@ type NamedFlagSets struct {
 
 // FlagSet returns the flag set with the given name and adds it to the
 // ordered name list if it is not in there yet.
+//
+// FlagSet 返回一个指定名称 name 的参数集 FlagSet 对象
 func (nfs *NamedFlagSets) FlagSet(name string) *pflag.FlagSet {
 	if nfs.FlagSets == nil {
 		nfs.FlagSets = map[string]*pflag.FlagSet{}
 	}
+	// 若该 name 对应的参数集 FlagSet 不存在, 则将其添加到 nfs.FlagSets 和 nfs.Order 中.
 	if _, ok := nfs.FlagSets[name]; !ok {
+		// NewFlagSet 将创建一个新的、空的参数集并名为 name 的 FlagSet 对象
 		nfs.FlagSets[name] = pflag.NewFlagSet(name, pflag.ExitOnError)
 		nfs.Order = append(nfs.Order, name)
 	}

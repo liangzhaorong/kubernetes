@@ -26,6 +26,7 @@ import (
 )
 
 // NodePorts is a plugin that checks if a node has free ports for the requested pod ports.
+// NodePorts 插件用于检查当前节点上是否存在待调度的 Pod 所请求的空闲端口
 type NodePorts struct{}
 
 var _ framework.PreFilterPlugin = &NodePorts{}
@@ -73,7 +74,9 @@ func getContainerPorts(pods ...*v1.Pod) []*v1.ContainerPort {
 
 // PreFilter invoked at the prefilter extension point.
 func (pl *NodePorts) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod) *framework.Status {
+	// 获取该 pod 配置的所有容器端口对象 ContainerPort
 	s := getContainerPorts(pod)
+	// 将该 pod 的端口信息以 preFilterStateKey 为 key 存储到框架的 CycleState 中, 以便后续阶段的插件使用
 	cycleState.Write(preFilterStateKey, preFilterState(s))
 	return nil
 }
@@ -84,6 +87,7 @@ func (pl *NodePorts) PreFilterExtensions() framework.PreFilterExtensions {
 }
 
 func getPreFilterState(cycleState *framework.CycleState) (preFilterState, error) {
+	// 从 CycleState 中获取该 key 对应的数据, 即 PreFilter 阶段保存的该 pod 的容器端口信息
 	c, err := cycleState.Read(preFilterStateKey)
 	if err != nil {
 		// preFilterState doesn't exist, likely PreFilter wasn't invoked.
@@ -99,11 +103,13 @@ func getPreFilterState(cycleState *framework.CycleState) (preFilterState, error)
 
 // Filter invoked at the filter extension point.
 func (pl *NodePorts) Filter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	// 从 CycleState 中获取 PreFilter 阶段缓存的该 pod 的容器端口信息.
 	wantPorts, err := getPreFilterState(cycleState)
 	if err != nil {
 		return framework.AsStatus(err)
 	}
 
+	// 检测该节点上已经分配了的端口与该 pod 请求的容器端口是否有冲突
 	fits := fitsPorts(wantPorts, nodeInfo)
 	if !fits {
 		return framework.NewStatus(framework.Unschedulable, ErrReason)
@@ -117,6 +123,7 @@ func Fits(pod *v1.Pod, nodeInfo *framework.NodeInfo) bool {
 	return fitsPorts(getContainerPorts(pod), nodeInfo)
 }
 
+// fitsPorts 检测该节点上已经分配了的端口与该 pod 请求的容器端口是否有冲突, 返回 false 表示有冲突, 不可调度到该节点上.
 func fitsPorts(wantPorts []*v1.ContainerPort, nodeInfo *framework.NodeInfo) bool {
 	// try to see whether existingPorts and wantPorts will conflict or not
 	existingPorts := nodeInfo.UsedPorts

@@ -56,39 +56,52 @@ type Binder interface {
 
 // Configurator defines I/O, caching, and other functionality needed to
 // construct a new scheduler.
+//
+// Configurator 定义了 I/O, 缓存和其他构造新调度器所需的功能.
 type Configurator struct {
 	client clientset.Interface
 
 	recorderFactory profile.RecorderFactory
 
+	// 共享的 informer 工厂
 	informerFactory informers.SharedInformerFactory
 
 	// Close this to stop all reflectors
 	StopEverything <-chan struct{}
 
-	schedulerCache internalcache.Cache
+	schedulerCache internalcache.Cache // 调度器缓存
 
 	// Always check all predicates even if the middle of one predicate fails.
 	alwaysCheckAllPredicates bool
 
 	// percentageOfNodesToScore specifies percentage of all nodes to score in each scheduling cycle.
+	//
+	// percentageOfNodesToScore 是用于指定一个百分比值, 一旦发现可用于运行 Pod 的节点与所有节点的百分比值达到该指定的
+	// 百分比值, 那么调度器将停止搜索集群中更多可运行该 Pod 的节点. 这有助于提高调度器的性能.
+	// 注意: 调度器会始终尝试至少查找 "minFeasibleNodesToFind" 个可行节点, 而不管该标志设置的百分比值是多少.
 	percentageOfNodesToScore int32
 
+	// 不可调度的 Pods 的初始 backoff（退避）秒数, 没有指定, 则默认为 1s
 	podInitialBackoffSeconds int64
 
+	// 不可调度的 Pods 的最大 backoff（退避）秒数. 必须大于或等于 podInitialBackoffSeconds.
+	// 没有指定, 则默认 10s.
 	podMaxBackoffSeconds int64
 
 	profiles          []schedulerapi.KubeSchedulerProfile
-	registry          frameworkruntime.Registry
-	nodeInfoSnapshot  *internalcache.Snapshot
-	extenders         []schedulerapi.Extender
+	registry          frameworkruntime.Registry // 调度周期中调用的插件的注册表
+	nodeInfoSnapshot  *internalcache.Snapshot   // nodeInfo 的快照
+	extenders         []schedulerapi.Extender   // 扩展的调度器
 	frameworkCapturer FrameworkCapturer
 }
 
 // create a scheduler from a set of registered plugins.
+//
+// create 从一组注册的插件中创建一个调度器对象 Scheduler
 func (c *Configurator) create() (*Scheduler, error) {
 	var extenders []framework.Extender
 	var ignoredExtendedResources []string
+	// 扩展调度器
 	if len(c.extenders) != 0 {
 		var ignorableExtenders []framework.Extender
 		for ii := range c.extenders {
@@ -131,6 +144,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	}
 
 	// The nominator will be passed all the way to framework instantiation.
+	// nominator 将一直传递到 framework 实例化
 	nominator := internalqueue.NewPodNominator()
 	profiles, err := profile.NewMap(c.profiles, c.registry, c.recorderFactory,
 		frameworkruntime.WithClientSet(c.client),
@@ -147,7 +161,9 @@ func (c *Configurator) create() (*Scheduler, error) {
 		return nil, errors.New("at least one profile is required")
 	}
 	// Profiles are required to have equivalent queue sort plugins.
+	// 获取在调度队列中对 pod 进行优先级排序的函数
 	lessFn := profiles[c.profiles[0].SchedulerName].QueueSortFunc()
+	//
 	podQueue := internalqueue.NewSchedulingQueue(
 		lessFn,
 		internalqueue.WithPodInitialBackoffDuration(time.Duration(c.podInitialBackoffSeconds)*time.Second),
@@ -164,6 +180,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	)
 	debugger.ListenForSignal(c.StopEverything)
 
+	// 创建一个 genericScheduler 对象
 	algo := core.NewGenericScheduler(
 		c.schedulerCache,
 		c.nodeInfoSnapshot,
@@ -183,14 +200,18 @@ func (c *Configurator) create() (*Scheduler, error) {
 }
 
 // createFromProvider creates a scheduler from the name of a registered algorithm provider.
+// createFromProvider 根据指定的 providerName 实例化调度器 Scheduler
 func (c *Configurator) createFromProvider(providerName string) (*Scheduler, error) {
 	klog.V(2).Infof("Creating scheduler from algorithm provider '%v'", providerName)
+	// 获取存储已注册的调度器算法的 Registry 对象
 	r := algorithmprovider.NewRegistry()
+	// 获取指定名称的调度器算法, 若该调度器算法没有注册, 则立即报错
 	defaultPlugins, exist := r[providerName]
 	if !exist {
 		return nil, fmt.Errorf("algorithm provider %q is not registered", providerName)
 	}
 
+	// 将默认启用/禁用的插件 defaultPlugins 合并到每个 c.profiles[i].Plugins 中
 	for i := range c.profiles {
 		prof := &c.profiles[i]
 		plugins := &schedulerapi.Plugins{}

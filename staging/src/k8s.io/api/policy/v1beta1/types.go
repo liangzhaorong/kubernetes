@@ -85,6 +85,7 @@ type PodDisruptionBudgetStatus struct {
 // +k8s:prerelease-lifecycle-gen:deprecated=1.22
 
 // PodDisruptionBudget is an object to define the max disruption that can be caused to a collection of pods
+// PodDisruptionBudget 能够限制同时中断的 Pod 资源对象的数量, 以保证集群的高可用性.
 type PodDisruptionBudget struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional

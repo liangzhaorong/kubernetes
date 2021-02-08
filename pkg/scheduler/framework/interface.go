@@ -34,12 +34,14 @@ import (
 )
 
 // NodeScoreList declares a list of nodes and their scores.
+// NodeScoreList 是记录节点分数的列表
 type NodeScoreList []NodeScore
 
 // NodeScore is a struct with node name and score.
+// NodeScore 用于描述在执行优选调度算法后节点的分数
 type NodeScore struct {
-	Name  string
-	Score int64
+	Name  string // 节点名称
+	Score int64  // 节点分数
 }
 
 // PluginToNodeScores declares a map from plugin name to its NodeScoreList.
@@ -67,6 +69,10 @@ const (
 	// preemption would not change anything. Plugins should return Unschedulable if it is possible
 	// that the pod can get scheduled with preemption.
 	// The accompanying status message should explain why the pod is unschedulable.
+	//
+	// 当 PreFilter 插件发现无法调度的（unschedulable）Pod 并且抢占不会改变任何内容时, 将使用 UnschedulableAndUnresolvable
+	// 状态码. 如果 Pod 可通过抢占调度, 则插件应该返回 Unschedulable.
+	// 即该状态码表示当调度失败时将略过抢占.
 	UnschedulableAndUnresolvable
 	// Wait is used when a Permit plugin finds a pod scheduling should wait.
 	Wait
@@ -512,6 +518,9 @@ type Framework interface {
 // Handle provides data and some tools that plugins can use. It is
 // passed to the plugin factories at the time of plugin initialization. Plugins
 // must store and use this handle to call framework functions.
+//
+// Handle 为插件提供了可以使用的数据和一些工具. 在插件初始化时将该 Handle 对象传递给插件工厂(plugin factories).
+// 插件必须存储并使用该 Handle 来调用框架函数.
 type Handle interface {
 	// SnapshotSharedLister returns listers from the latest NodeInfo Snapshot. The snapshot
 	// is taken at the beginning of a scheduling cycle and remains unchanged until
@@ -520,6 +529,11 @@ type Handle interface {
 	// cycle (pre-bind/bind/post-bind/un-reserve plugin) should not use it,
 	// otherwise a concurrent read/write error might occur, they should use scheduler
 	// cache instead.
+	//
+	// SnapshotSharedLister 从最新的 NodeInfo Snapshot 中返回 listers. 该 snapshot 是在调度循环开始时生成并保持不变,
+	// 直到一个 pod 完成 "Permit" 阶段(调度循环中的一个执行点) 为止. 无法保证该 snapshot 信息在调度循环中的 binding 节点
+	// 保持不变, 因此在 binding (pre-bind/bind/post-bind/un-reserve plugin) 阶段中插件不应该使用它, 否则可能会发生并发的
+	// 读写错误, binding 阶段的插件应该使用调度器缓存 (scheduler cache) 来替代它.
 	SnapshotSharedLister() SharedLister
 
 	// IterateOverWaitingPods acquires a read lock and iterates over the WaitingPods map.
@@ -559,15 +573,21 @@ type PreemptHandle interface {
 }
 
 // PodNominator abstracts operations to maintain nominated Pods.
+//
+// PodNominator 抽象出维护 nominated Pods 的操作.
 type PodNominator interface {
 	// AddNominatedPod adds the given pod to the nominated pod map or
 	// updates it if it already exists.
+	//
+	// AddNominatedPod 将给定的 pod 添加到 nominatedPods 这个 map 中, 或对其进行更新（如果已存在）
 	AddNominatedPod(pod *v1.Pod, nodeName string)
 	// DeleteNominatedPodIfExists deletes nominatedPod from internal cache. It's a no-op if it doesn't exist.
 	DeleteNominatedPodIfExists(pod *v1.Pod)
 	// UpdateNominatedPod updates the <oldPod> with <newPod>.
 	UpdateNominatedPod(oldPod, newPod *v1.Pod)
 	// NominatedPodsForNode returns nominatedPods on the given node.
+	//
+	// 返回指定节点上的 nominatedPods 列表.
 	NominatedPodsForNode(nodeName string) []*v1.Pod
 }
 

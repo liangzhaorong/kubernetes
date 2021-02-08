@@ -37,6 +37,7 @@ const (
 	SchedulerPolicyConfigMapKey = "policy.cfg"
 
 	// SchedulerDefaultProviderName defines the default provider names
+	// 定义默认的调度器算法 provider
 	SchedulerDefaultProviderName = "DefaultProvider"
 
 	// DefaultInsecureSchedulerPort is the default port for the scheduler status server.
@@ -46,6 +47,8 @@ const (
 
 	// DefaultKubeSchedulerPort is the default port for the scheduler status server.
 	// May be overridden by a flag at startup.
+	//
+	// DefaultKubeSchedulerPort 是 kube-scheduler 服务器默认绑定的端口. 可能会被启动参数覆盖.
 	DefaultKubeSchedulerPort = 10259
 )
 
@@ -73,7 +76,7 @@ type KubeSchedulerConfiguration struct {
 
 	// LeaderElection defines the configuration of leader election client.
 	//
-	// LeaderElection 定义了 leader 选择客户端的配置
+	// LeaderElection 定义了 leader 选举客户端的配置
 	LeaderElection componentbaseconfig.LeaderElectionConfiguration
 
 	// ClientConnection specifies the kubeconfig file and client connection
@@ -125,6 +128,9 @@ type KubeSchedulerConfiguration struct {
 	// PodMaxBackoffSeconds is the max backoff for unschedulable pods.
 	// If specified, it must be greater than or equal to podInitialBackoffSeconds. If this value is null,
 	// the default value (10s) will be used.
+	//
+	// PodMaxBackoffSeconds 是不可调度的 Pods 的最大 backoff（退避） 秒数. 如果指定, 则必须大于或等于
+	// PodInitialBackoffSeconds. 如果该值为 null, 则将使用默认值 10s.
 	PodMaxBackoffSeconds int64
 
 	// Profiles are scheduling profiles that kube-scheduler supports. Pods can
@@ -142,10 +148,15 @@ type KubeSchedulerConfiguration struct {
 }
 
 // KubeSchedulerProfile is a scheduling profile.
+//
+// KubeSchedulerProfile 是调度器的 profile.
 type KubeSchedulerProfile struct {
 	// SchedulerName is the name of the scheduler associated to this profile.
 	// If SchedulerName matches with the pod's "spec.schedulerName", then the pod
 	// is scheduled with this profile.
+	//
+	// SchedulerName 是与该 profile 关联的调度器名称. 如果 SchedulerName 匹配 pod 的 "spec.schedulerName" 值,
+	// 则将使用该 profile 调度 pod.
 	SchedulerName string
 
 	// Plugins specify the set of plugins that should be enabled or disabled.
@@ -156,11 +167,17 @@ type KubeSchedulerProfile struct {
 	// default plugins for that extension point will be used if there is any.
 	// If a QueueSort plugin is specified, the same QueueSort Plugin and
 	// PluginConfig must be specified for all profiles.
+	//
+	// Plugins 指定启用/禁用的插件集. 启用的插件是除默认插件外还应启用的插件. 禁用的插件是应禁用的任意默认插件.
+	// 如果没有为扩展点指定启用/禁用的插件, 那么将使用该扩展点的默认插件. 如果指定了 QueueSort 插件, 则必须为
+	// 所有 profiles 文件指定相同的 QueueSort 插件和 PluginConfig.
 	Plugins *Plugins
 
 	// PluginConfig is an optional set of custom plugin arguments for each plugin.
 	// Omitting config args for a plugin is equivalent to using the default config
 	// for that plugin.
+	//
+	// PluginConfig 是每个插件的一组可选的自定义插件参数. 省略插件的配置参数等价于使用该插件的默认配置.
 	PluginConfig []PluginConfig
 }
 

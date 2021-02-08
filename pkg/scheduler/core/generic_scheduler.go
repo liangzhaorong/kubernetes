@@ -114,6 +114,11 @@ type genericScheduler struct {
 	cache                    internalcache.Cache
 	extenders                []framework.Extender
 	nodeInfoSnapshot         *internalcache.Snapshot
+	// kube-scheduler 通过 percentageOfNodesToScore 机制优化了预选调度过程中的性能. 该机制的原理是: 一旦发现一定数量的
+	// 可用节点（占所有节点的百分比）, 调度器就停止寻找更多的可用节点, 这样可大大提升大型 Kubernetes 集群中调度器的性能.
+	//
+	// percentageOfNodesToScore 参数值是一个集群中所有节点的百分比, 范围在 1 和 100 之间. 如果其被设置为超过 100 的值,
+	// 则被置为 100%; 如果其被设置为 0, 则不启用该功能, 该参数的默认值为 50%.
 	percentageOfNodesToScore int32
 	nextStartNodeIndex       int
 }
@@ -128,6 +133,8 @@ func (g *genericScheduler) snapshot() error {
 // Schedule tries to schedule the given pod to one of the nodes in the node list.
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a FitError error with reasons.
+//
+// Schedule 为指定待调度的 Pod 选择一个合适的节点来运行该 Pod, 如果成功, 则返回节点的名称.
 func (g *genericScheduler) Schedule(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (result ScheduleResult, err error) {
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
@@ -141,12 +148,14 @@ func (g *genericScheduler) Schedule(ctx context.Context, fwk framework.Framework
 		return result, ErrNoNodesAvailable
 	}
 
+	// 预选调度算法: 检查节点是否符合运行 "待调度 Pod 资源对象" 的条件, 如果符合条件, 则将其加入可用节点列表.
 	feasibleNodes, filteredNodesStatuses, err := g.findNodesThatFitPod(ctx, fwk, state, pod)
 	if err != nil {
 		return result, err
 	}
 	trace.Step("Computing predicates done")
 
+	// 若没有找到符合条件的节点, 则返回错误
 	if len(feasibleNodes) == 0 {
 		return result, &FitError{
 			Pod:                   pod,
@@ -156,6 +165,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, fwk framework.Framework
 	}
 
 	// When only one node after predicate, just use it.
+	// 若执行预选调度算法后仅找到一个合适的节点, 则直接使用它
 	if len(feasibleNodes) == 1 {
 		return ScheduleResult{
 			SuggestedHost:  feasibleNodes[0].Name,
@@ -164,11 +174,15 @@ func (g *genericScheduler) Schedule(ctx context.Context, fwk framework.Framework
 		}, nil
 	}
 
+	// 优选调度算法: 为每一个可用节点计算出一个最终分数, kube-scheduler 调度器会将分数最高的节点作为最优运行
+	// "待调度 Pod 资源对象" 的节点.
 	priorityList, err := g.prioritizeNodes(ctx, fwk, state, pod, feasibleNodes)
 	if err != nil {
 		return result, err
 	}
 
+	// 计算完所有节点的分数后, 接着调用 g.selectHost 函数将分数最高的节点作为运行 Pod 资源对象的节点. 如果多个节点
+	// 都获得了最高分, 则通过 rand.Intn 方式选择一个最佳节点.
 	host, err := g.selectHost(priorityList)
 	trace.Step("Prioritizing done")
 
@@ -185,6 +199,9 @@ func (g *genericScheduler) Extenders() []framework.Extender {
 
 // selectHost takes a prioritized list of nodes and then picks one
 // in a reservoir sampling manner from the nodes that had the highest score.
+//
+// selectHost 选择分数最高的节点作为运行 Pod 资源对象的节点. 如果多个节点
+// 都获得了最高分, 则通过 rand.Intn 方式选择一个最佳节点.
 func (g *genericScheduler) selectHost(nodeScoreList framework.NodeScoreList) (string, error) {
 	if len(nodeScoreList) == 0 {
 		return "", fmt.Errorf("empty priorityList")
@@ -210,6 +227,17 @@ func (g *genericScheduler) selectHost(nodeScoreList framework.NodeScoreList) (st
 
 // numFeasibleNodesToFind returns the number of feasible nodes that once found, the scheduler stops
 // its search for more feasible nodes.
+//
+// numFeasibleNodesToFind 函数按照 percentageOfNodesToScore 参数值计算出可参与预选调度的节点数量. 该函数可获得当前
+// Kubernets 集群的节点数量, percentageOfNodesToScore 机制根据集群规模的大小计算出一个合理的可用节点数量并返回.
+//
+// 该机制使用一个线性公式, 在默认的情况（即 percentageOfNodesToScore 参数值为 50%）下, 对于一个小于或等于 100 节点规模
+// 的集群, 所有节点都参与预选调度. 对于一个超过 5000 个节点规模的集群, 该公式的收益率为 10%, 自动值的下限是 5%, 那么只有
+// 500 个节点参与预选调度. 假设用户设置的 percentageOfNodesToScore 参数值小于 5%, 那么调度器会以集群的至少 5% 的节点参与
+// 预选调度.
+//
+// 注意: 当 Kubernetes 集群只有数百个节点或更少的节点时, 不建议降低 percentageOfNodesToScore 的默认值, 因为这样不能提升
+// 调度器的性能. 建议在集群规模超过上千个节点时, 才按需设置该值.
 func (g *genericScheduler) numFeasibleNodesToFind(numAllNodes int32) (numNodes int32) {
 	if numAllNodes < minFeasibleNodesToFind || g.percentageOfNodesToScore >= 100 {
 		return numAllNodes
@@ -238,6 +266,7 @@ func (g *genericScheduler) findNodesThatFitPod(ctx context.Context, fwk framewor
 	filteredNodesStatuses := make(framework.NodeToStatusMap)
 
 	// Run "prefilter" plugins.
+	// 执行 PreFilter 插件
 	s := fwk.RunPreFilterPlugins(ctx, state, pod)
 	if !s.IsSuccess() {
 		if !s.IsUnschedulable() {
@@ -255,11 +284,13 @@ func (g *genericScheduler) findNodesThatFitPod(ctx context.Context, fwk framewor
 		return nil, filteredNodesStatuses, nil
 	}
 
+	// 查找所有能满足 Filter 插件的节点
 	feasibleNodes, err := g.findNodesThatPassFilters(ctx, fwk, state, pod, filteredNodesStatuses)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// 调用所有调度器扩展器的 Filter 函数
 	feasibleNodes, err = g.findNodesThatPassExtenders(pod, feasibleNodes, filteredNodesStatuses)
 	if err != nil {
 		return nil, nil, err
@@ -268,18 +299,23 @@ func (g *genericScheduler) findNodesThatFitPod(ctx context.Context, fwk framewor
 }
 
 // findNodesThatPassFilters finds the nodes that fit the filter plugins.
+// findNodesThatPassFilters 查找所有能满足 Filter 插件的节点
 func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod, statuses framework.NodeToStatusMap) ([]*v1.Node, error) {
+	// 获取当前集群中所有的节点
 	allNodes, err := g.nodeInfoSnapshot.NodeInfos().List()
 	if err != nil {
 		return nil, err
 	}
 
+	// 通过 percentageOfNodesToScore 参数值计算出需要参与预选调度的节点数量
 	numNodesToFind := g.numFeasibleNodesToFind(int32(len(allNodes)))
 
 	// Create feasible list with enough space to avoid growing it
 	// and allow assigning.
+	// 根据需要参与预选调度的节点数预先创建 numNodesToFind 大小的 feasibleNodes 对象列表
 	feasibleNodes := make([]*v1.Node, numNodesToFind)
 
+	// 如果没有定义 Filter 阶段的 plugins, 则直接获取 allNodes 列表中前 numNodesToFind 个节点返回
 	if !fwk.HasFilterPlugins() {
 		length := len(allNodes)
 		for i := range feasibleNodes {
@@ -293,10 +329,14 @@ func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk fra
 	var statusesLock sync.Mutex
 	var feasibleNodesLen int32
 	ctx, cancel := context.WithCancel(ctx)
+	// checkNode 函数用于检查节点是否符合运行 Pod 资源对象的条件. 内部通过 allNodes[(g.nextStartNodeIndex+i)%len(allNodes)]
+	// 不断地从缓存中获取下一个节点. 通过 PodPassesFiltersOnNode 函数执行所有的预选调度算法, 检查当前节点是否符合运行 Pod 资源
+	// 对象的条件. 如果符合条件, 则将节点加入 feasibleNodes 数组.
 	checkNode := func(i int) {
 		// We check the nodes starting from where we left off in the previous scheduling cycle,
 		// this is to make sure all nodes have the same chance of being examined across pods.
 		nodeInfo := allNodes[(g.nextStartNodeIndex+i)%len(allNodes)]
+		// 执行所有注册的 Filter 插件
 		fits, status, err := PodPassesFiltersOnNode(ctx, fwk.PreemptHandle(), state, pod, nodeInfo)
 		if err != nil {
 			errCh.SendErrorWithCancel(err, cancel)
@@ -304,6 +344,8 @@ func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk fra
 		}
 		if fits {
 			length := atomic.AddInt32(&feasibleNodesLen, 1)
+			// 若当前已找到的可用节点数已经达到通过 percentageOfNodesToScore 机制得到的可用节点数 numNodesToFind,
+			// 则通过 cancel 函数退出并发操作.
 			if length > numNodesToFind {
 				cancel()
 				atomic.AddInt32(&feasibleNodesLen, -1)
@@ -319,6 +361,7 @@ func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk fra
 		}
 	}
 
+	// 记录开始过滤节点的时间点
 	beginCheckNode := time.Now()
 	statusCode := framework.Success
 	defer func() {
@@ -330,6 +373,8 @@ func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk fra
 
 	// Stops searching for more nodes once the configured number of feasible nodes
 	// are found.
+	// 默认起 16 个 goroutine 并发执行 checkNode 函数来执行所有的预选调度算法. 一旦找到通过 percentageOfNodesToScore 机制
+	// 得到的可用节点数, 就停止搜索更多的可用节点, 内部执行 cancel 函数退出并发操作.
 	parallelize.Until(ctx, len(allNodes), checkNode)
 	processedNodes := int(feasibleNodesLen) + len(statuses)
 	g.nextStartNodeIndex = (g.nextStartNodeIndex + processedNodes) % len(allNodes)
@@ -411,6 +456,10 @@ func addNominatedPods(ctx context.Context, ph framework.PreemptHandle, pod *v1.P
 // SelectVictimsOnNode(). Preempt removes victims from PreFilter state and
 // NodeInfo before calling this function.
 // TODO: move this out so that plugins don't need to depend on <core> pkg.
+//
+// PodPassesFiltersOnNode 检查 NodeInfo 给定的节点是否满足 filter plugins.
+//
+// 该函数可在两处不同的地方调用：Schedule（调度）和 Preempt（抢占）.
 func PodPassesFiltersOnNode(
 	ctx context.Context,
 	ph framework.PreemptHandle,
@@ -444,6 +493,9 @@ func PodPassesFiltersOnNode(
 		nodeInfoToUse := info
 		if i == 0 {
 			var err error
+			// addNominatedPods 函数从调度队列上找到节点上优先级大于或等于当前 Pod 资源对象的 NominatedPods, 如果节点上存在
+			// NominatedPods, 则将当前 Pod 资源对象和 NominatedPods 加入相同的 nodeInfo 对象中. 其中 NominatedPods 表示已经
+			// 分配到节点上但还没有真正运行起来的 Pod 资源对象, 它们在其他 Pod 资源对象从节点中被删除后才可以进行实际调度.
 			podsAdded, stateToUse, nodeInfoToUse, err = addNominatedPods(ctx, ph, pod, state, info)
 			if err != nil {
 				return false, nil, err
@@ -452,6 +504,7 @@ func PodPassesFiltersOnNode(
 			break
 		}
 
+		// 执行所有的 Filter plugins
 		statusMap := ph.RunFilterPlugins(ctx, stateToUse, pod, nodeInfoToUse)
 		status = statusMap.Merge()
 		if !status.IsSuccess() && !status.IsUnschedulable() {
@@ -476,6 +529,7 @@ func (g *genericScheduler) prioritizeNodes(
 ) (framework.NodeScoreList, error) {
 	// If no priority configs are provided, then all nodes will have a score of one.
 	// This is required to generate the priority list in the required format
+	// 若没有实现额外的调度器扩展器且没有注册 Score 插件, 则为所有节点设置分数 1
 	if len(g.extenders) == 0 && !fwk.HasScorePlugins() {
 		result := make(framework.NodeScoreList, 0, len(nodes))
 		for i := range nodes {
@@ -488,12 +542,14 @@ func (g *genericScheduler) prioritizeNodes(
 	}
 
 	// Run PreScore plugins.
+	// 执行所有的 PreScore 插件
 	preScoreStatus := fwk.RunPreScorePlugins(ctx, state, pod, nodes)
 	if !preScoreStatus.IsSuccess() {
 		return nil, preScoreStatus.AsError()
 	}
 
 	// Run the Score plugins.
+	// 执行所有的 Score 插件
 	scoresMap, scoreStatus := fwk.RunScorePlugins(ctx, state, pod, nodes)
 	if !scoreStatus.IsSuccess() {
 		return nil, scoreStatus.AsError()
@@ -508,6 +564,7 @@ func (g *genericScheduler) prioritizeNodes(
 	// Summarize all scores.
 	result := make(framework.NodeScoreList, 0, len(nodes))
 
+	// 为所有节点创建一个 NodeScore 对象, 并添加到 result 列表中, NodeScore 对象代表该节点的分数
 	for i := range nodes {
 		result = append(result, framework.NodeScore{Name: nodes[i].Name, Score: 0})
 		for j := range scoresMap {
@@ -515,6 +572,7 @@ func (g *genericScheduler) prioritizeNodes(
 		}
 	}
 
+	// 调用所有的调度器扩展器的 Prioritize 函数
 	if len(g.extenders) != 0 && nodes != nil {
 		var mu sync.Mutex
 		var wg sync.WaitGroup

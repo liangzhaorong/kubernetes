@@ -51,11 +51,17 @@ func DefaultAuthWebhookRetryBackoff() *wait.Backoff {
 type RequestHeaderAuthenticationOptions struct {
 	// ClientCAFile is the root certificate bundle to verify client certificates on incoming requests
 	// before trusting usernames in headers.
+	//
+	// --requestheader-client-ca-file: 用于指定有效的客户端 CA 证书
 	ClientCAFile string
 
+	// --requestheader-username-headers: 用于指定用户名列表, 建议使用 X-Remote-User (默认值为 [x-remote-user])
 	UsernameHeaders     []string
+	// --requestheader-group-headers: 用于指定组列表, 建议使用 X-Remote-Group (默认值为 [x-remote-group])
 	GroupHeaders        []string
+	// --requestheader-extra-headers-prefix: 用于指定额外的列表, 建议使用 X-Remote-Extra- (默认值为 [x-remote-extra-])
 	ExtraHeaderPrefixes []string
+	// --requestheader-allowed-names: 用于指定通用名称 (Common Name)
 	AllowedNames        []string
 }
 
@@ -88,25 +94,31 @@ func checkForWhiteSpaceOnly(flag string, headerNames ...string) error {
 	return nil
 }
 
+// AddFlags 添加请求头认证相关参数
 func (s *RequestHeaderAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 	if s == nil {
 		return
 	}
 
+	// --requestheader-username-headers: 用于指定用户名列表, 建议使用 X-Remote-User (默认值为 [x-remote-user])
 	fs.StringSliceVar(&s.UsernameHeaders, "requestheader-username-headers", s.UsernameHeaders, ""+
 		"List of request headers to inspect for usernames. X-Remote-User is common.")
 
+	// --requestheader-group-headers: 用于指定组列表, 建议使用 X-Remote-Group (默认值为 [x-remote-group])
 	fs.StringSliceVar(&s.GroupHeaders, "requestheader-group-headers", s.GroupHeaders, ""+
 		"List of request headers to inspect for groups. X-Remote-Group is suggested.")
 
+	// --requestheader-extra-headers-prefix: 用于指定额外的列表, 建议使用 X-Remote-Extra- (默认值为 [x-remote-extra-])
 	fs.StringSliceVar(&s.ExtraHeaderPrefixes, "requestheader-extra-headers-prefix", s.ExtraHeaderPrefixes, ""+
 		"List of request header prefixes to inspect. X-Remote-Extra- is suggested.")
 
+	// --requestheader-client-ca-file: 用于指定有效的客户端 CA 证书
 	fs.StringVar(&s.ClientCAFile, "requestheader-client-ca-file", s.ClientCAFile, ""+
 		"Root certificate bundle to use to verify client certificates on incoming requests "+
 		"before trusting usernames in headers specified by --requestheader-username-headers. "+
 		"WARNING: generally do not depend on authorization being already done for incoming requests.")
 
+	// --requestheader-allowed-names: 用于指定通用名称 (Common Name)
 	fs.StringSliceVar(&s.AllowedNames, "requestheader-allowed-names", s.AllowedNames, ""+
 		"List of client certificate common names to allow to provide usernames in headers "+
 		"specified by --requestheader-username-headers. If empty, any client certificate validated "+
@@ -138,6 +150,8 @@ func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig
 // get the verify options for your authenticator.
 type ClientCertAuthenticationOptions struct {
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
+	//
+	// --client-ca-file: 用于启用 ClientCA 认证
 	ClientCA string
 
 	// CAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
@@ -160,6 +174,7 @@ func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamicc
 }
 
 func (s *ClientCertAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
+	// --client-ca-file: 用于启用 ClientCA 认证
 	fs.StringVar(&s.ClientCA, "client-ca-file", s.ClientCA, ""+
 		"If set, any request presenting a client certificate signed by one of "+
 		"the authorities in the client-ca-file is authenticated with an identity "+
@@ -169,25 +184,44 @@ func (s *ClientCertAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 // DelegatingAuthenticationOptions provides an easy way for composing API servers to delegate their authentication to
 // the root kube API server.  The API federator will act as
 // a front proxy and direction connections will be able to delegate to the core kube API server
+//
+// DelegatingAuthenticationOptions 提供了一个简单的方法来构成 API 服务器, 以将其身份认证委派给 root kube-apiserver.
+// API 联合器(federator) 将充当前端代理
 type DelegatingAuthenticationOptions struct {
 	// RemoteKubeConfigFile is the file to use to connect to a "normal" kube API server which hosts the
 	// TokenAccessReview.authentication.k8s.io endpoint for checking tokens.
+	//
+	// RemoteKubeConfigFile 是用于连接到 "normal" kube-apiserver 的文件,
+	//
+	// --authentication-kubeconfig: 用于指定 kube-scheduler 的认证 kubeconfig 配置文件, 该文件中定义了访问 Kubernetes API
+	// Server 的配置信息.
 	RemoteKubeConfigFile string
 	// RemoteKubeConfigFileOptional is specifying whether not specifying the kubeconfig or
 	// a missing in-cluster config will be fatal.
+	//
+	// 指示不指定 kubeconfig 或缺少集群内的配置将是致命的.
 	RemoteKubeConfigFileOptional bool
 
 	// CacheTTL is the length of time that a token authentication answer will be cached.
+	//
+	// --authentication-token-webhook-cache-ttl: 用于设置缓存认证时间 (默认值 10秒)
 	CacheTTL time.Duration
 
 	ClientCert    ClientCertAuthenticationOptions
 	RequestHeader RequestHeaderAuthenticationOptions
 
 	// SkipInClusterLookup indicates missing authentication configuration should not be retrieved from the cluster configmap
+	//
+	// --authentication-skip-lookup: 如果该参数为 false, 则在 --authentication-kubeconfig 参数中跳过身份验证配置
 	SkipInClusterLookup bool
 
 	// TolerateInClusterLookupFailure indicates failures to look up authentication configuration from the cluster configmap should not be fatal.
 	// Setting this can result in an authenticator that will reject all requests.
+	//
+	// TolerateInClusterLookupFailure 设置为 true, 则表示当从 cluster configmap 查找身份认证配置失败时不是致命的.
+	// 设置该选项可能会导致身份认证器 authenticator 拒绝所有请求.
+	//
+	// --authentication-tolerate-lookup-failure: 若为 true, 则表示可忽略认证失败, 这会导致身份验证将所有的请求视为匿名请求.
 	TolerateInClusterLookupFailure bool
 
 	// WebhookRetryBackoff specifies the backoff parameters for the authentication webhook retry logic.
@@ -200,6 +234,7 @@ type DelegatingAuthenticationOptions struct {
 	ClientTimeout time.Duration
 }
 
+// NewDelegatingAuthenticationOptions 创建 DelegatingAuthenticationOptions 结构体, 该对象用于配置调度器认证相关参数
 func NewDelegatingAuthenticationOptions() *DelegatingAuthenticationOptions {
 	return &DelegatingAuthenticationOptions{
 		// very low for responsiveness, but high enough to handle storms
@@ -236,6 +271,7 @@ func (s *DelegatingAuthenticationOptions) Validate() []error {
 	return allErrors
 }
 
+// AddFlags 添加认证相关参数
 func (s *DelegatingAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 	if s == nil {
 		return
@@ -245,19 +281,24 @@ func (s *DelegatingAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 	if s.RemoteKubeConfigFileOptional {
 		optionalKubeConfigSentence = " This is optional. If empty, all token requests are considered to be anonymous and no client CA is looked up in the cluster."
 	}
+	// --authentication-kubeconfig: 用于指定 kube-scheduler 的认证 kubeconfig 配置文件, 该文件中定义了访问 Kubernetes API
+	// Server 的配置信息.
 	fs.StringVar(&s.RemoteKubeConfigFile, "authentication-kubeconfig", s.RemoteKubeConfigFile, ""+
 		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to create "+
 		"tokenreviews.authentication.k8s.io."+optionalKubeConfigSentence)
 
+	// --authentication-token-webhook-cache-ttl: 用于设置缓存认证时间 (默认值 10秒)
 	fs.DurationVar(&s.CacheTTL, "authentication-token-webhook-cache-ttl", s.CacheTTL,
 		"The duration to cache responses from the webhook token authenticator.")
 
 	s.ClientCert.AddFlags(fs)
 	s.RequestHeader.AddFlags(fs)
 
+	// --authentication-skip-lookup: 如果该参数为 false, 则在 --authentication-kubeconfig 参数中跳过身份验证配置
 	fs.BoolVar(&s.SkipInClusterLookup, "authentication-skip-lookup", s.SkipInClusterLookup, ""+
 		"If false, the authentication-kubeconfig will be used to lookup missing authentication "+
 		"configuration from the cluster.")
+	// --authentication-tolerate-lookup-failure: 若为 true, 则表示可忽略认证失败, 这会导致身份验证将所有的请求视为匿名请求.
 	fs.BoolVar(&s.TolerateInClusterLookupFailure, "authentication-tolerate-lookup-failure", s.TolerateInClusterLookupFailure, ""+
 		"If true, failures to look up missing authentication configuration from the cluster are not considered fatal. "+
 		"Note that this can result in authentication that treats all requests as anonymous.")

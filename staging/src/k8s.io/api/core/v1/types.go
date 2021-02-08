@@ -1819,6 +1819,8 @@ type PersistentVolumeClaimTemplate struct {
 }
 
 // ContainerPort represents a network port in a single container.
+//
+// ContainerPort 代表一个容器上的网络端口.
 type ContainerPort struct {
 	// If specified, this must be an IANA_SVC_NAME and unique within the pod. Each
 	// named port in a pod must have a unique name. Name for the port that can be
@@ -2673,19 +2675,27 @@ type TopologySelectorLabelRequirement struct {
 }
 
 // Affinity is a group of affinity scheduling rules.
+// Affinity 是一组亲和性调度规则.
+// TODO: Pod 资源对象之间的亲和性和反亲和性需要大量的逻辑处理, 这在大型 Kubernetes 集群中会大大降低调度性能,
+// 因此官方不建议在大于数百个节点的集群中使用它们.
 type Affinity struct {
 	// Describes node affinity scheduling rules for the pod.
+	// 节点亲和性, Pod 资源对象与节点之间的关系亲和性.
 	// +optional
 	NodeAffinity *NodeAffinity `json:"nodeAffinity,omitempty" protobuf:"bytes,1,opt,name=nodeAffinity"`
 	// Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).
+	// Pod 资源对象亲和性, Pod 资源对象与 Pod 资源对象的关系亲和性.
 	// +optional
 	PodAffinity *PodAffinity `json:"podAffinity,omitempty" protobuf:"bytes,2,opt,name=podAffinity"`
 	// Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).
+	// Pod 资源对象反亲和性, Pod 资源对象与 Pod 资源对象的关系反亲和性.
 	// +optional
 	PodAntiAffinity *PodAntiAffinity `json:"podAntiAffinity,omitempty" protobuf:"bytes,3,opt,name=podAntiAffinity"`
 }
 
 // Pod affinity is a group of inter pod affinity scheduling rules.
+// PodAffinity（Pod 资源对象亲和性）将某个 Pod 资源对象调度到与另一个 Pod 资源对象相邻的位置, 如调度到同一主机,
+// 调度到同一硬件集群, 调度到同一机房, 以缩短网络传输延时.
 type PodAffinity struct {
 	// NOT YET IMPLEMENTED. TODO: Uncomment field once it is implemented.
 	// If the affinity requirements specified by this field are not met at
@@ -2705,6 +2715,9 @@ type PodAffinity struct {
 	// system may or may not try to eventually evict the pod from its node.
 	// When there are multiple elements, the lists of nodes corresponding to each
 	// podAffinityTerm are intersected, i.e. all terms must be satisfied.
+	//
+	// Pod 资源对象必须被部署到满足条件的节点上（与另一个 Pod 资源对象相邻）, 如果没有满足条件的节点, 则 Pod 资源对象
+	// 创建失败并不断重试. 该策略也被称为硬（Hard）策略.
 	// +optional
 	RequiredDuringSchedulingIgnoredDuringExecution []PodAffinityTerm `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,1,rep,name=requiredDuringSchedulingIgnoredDuringExecution"`
 	// The scheduler will prefer to schedule pods to nodes that satisfy
@@ -2716,11 +2729,16 @@ type PodAffinity struct {
 	// compute a sum by iterating through the elements of this field and adding
 	// "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
 	// node(s) with the highest sum are the most preferred.
+	//
+	// Pod 资源对象优先被部署到满足条件的节点上（与另一个 Pod 资源对象相邻）, 如果没有满足条件的节点, 则从其他节点中选择较优
+	// 的节点. 该策略也被称为软（Soft）模式.
 	// +optional
 	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,2,rep,name=preferredDuringSchedulingIgnoredDuringExecution"`
 }
 
 // Pod anti affinity is a group of inter pod anti affinity scheduling rules.
+// PodAntiAffinity（Pod 资源对象反亲和性）一般用于容灾, 如, 将一个 Pod 资源对象的多副本实例调度到不同的节点上,
+// 调度到不同的硬件集群上等, 这样可降低风险并提升 Pod 资源对象的可用性.
 type PodAntiAffinity struct {
 	// NOT YET IMPLEMENTED. TODO: Uncomment field once it is implemented.
 	// If the anti-affinity requirements specified by this field are not met at
@@ -2740,6 +2758,9 @@ type PodAntiAffinity struct {
 	// system may or may not try to eventually evict the pod from its node.
 	// When there are multiple elements, the lists of nodes corresponding to each
 	// podAffinityTerm are intersected, i.e. all terms must be satisfied.
+	//
+	// Pod 资源对象必须被部署到满足条件的节点上（与另一个 Pod 资源对象互斥）, 如果没有满足条件的节点, 则 Pod 资源对象
+	// 创建失败并不断重试. 该策略也被称为硬（Hard）策略.
 	// +optional
 	RequiredDuringSchedulingIgnoredDuringExecution []PodAffinityTerm `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,1,rep,name=requiredDuringSchedulingIgnoredDuringExecution"`
 	// The scheduler will prefer to schedule pods to nodes that satisfy
@@ -2751,6 +2772,9 @@ type PodAntiAffinity struct {
 	// compute a sum by iterating through the elements of this field and adding
 	// "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
 	// node(s) with the highest sum are the most preferred.
+	//
+	// Pod 资源对象优先被部署到满足条件的节点上（与另一个 Pod 资源对象互斥）, 如果没有满足条件的节点, 则从其他节点中
+	// 选择较优的节点. 该策略也被称为软（Soft）模式.
 	// +optional
 	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,2,rep,name=preferredDuringSchedulingIgnoredDuringExecution"`
 }
@@ -2787,6 +2811,10 @@ type PodAffinityTerm struct {
 }
 
 // Node affinity is a group of node affinity scheduling rules.
+// NodeAffinity 是一组节点亲和性调度规则. NodeAffinity 将某个 Pod 资源对象调度到特定的节点上, 如,
+// 调度到指定机房, 调度到具有 GPU 硬件资源的节点上, 调度到 I/O 密集型的节点上等场景.
+// 注意: 在 Pod 资源对象被调度并运行后, 如果节点标签发生了变化, 不再满足 Pod 资源对象指定的条件, 此时已经运行的 Pod
+// 资源对象还会继续运行在当前的节点上.
 type NodeAffinity struct {
 	// NOT YET IMPLEMENTED. TODO: Uncomment field once it is implemented.
 	// If the affinity requirements specified by this field are not met at
@@ -2802,6 +2830,9 @@ type NodeAffinity struct {
 	// If the affinity requirements specified by this field cease to be met
 	// at some point during pod execution (e.g. due to an update), the system
 	// may or may not try to eventually evict the pod from its node.
+	//
+	// Pod 资源对象必须被部署到满足条件的节点上, 如果没有满足条件的节点, 则 Pod 资源对象创建失败并不断重试.
+	// 该策略也被称为硬（Hard）策略.
 	// +optional
 	RequiredDuringSchedulingIgnoredDuringExecution *NodeSelector `json:"requiredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,1,opt,name=requiredDuringSchedulingIgnoredDuringExecution"`
 	// The scheduler will prefer to schedule pods to nodes that satisfy
@@ -2813,6 +2844,9 @@ type NodeAffinity struct {
 	// compute a sum by iterating through the elements of this field and adding
 	// "weight" to the sum if the node matches the corresponding matchExpressions; the
 	// node(s) with the highest sum are the most preferred.
+	//
+	// Pod 资源对象优先被部署到满足条件的节点上, 如果没有满足条件的节点, 则从其他节点中选择较优的节点.
+	// 该策略也被称为软（Soft）模式.
 	// +optional
 	PreferredDuringSchedulingIgnoredDuringExecution []PreferredSchedulingTerm `json:"preferredDuringSchedulingIgnoredDuringExecution,omitempty" protobuf:"bytes,2,rep,name=preferredDuringSchedulingIgnoredDuringExecution"`
 }

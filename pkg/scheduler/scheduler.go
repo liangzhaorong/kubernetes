@@ -58,11 +58,14 @@ const (
 
 // Scheduler watches for new unscheduled pods. It attempts to find
 // nodes that they fit on and writes bindings back to the api server.
+//
+// Scheduler 监控新的未调度的（unscheduled）的 pods. 它尝试查找合适的节点, 并将 binding 发送给 kube-apiserver.
 type Scheduler struct {
 	// It is expected that changes made via SchedulerCache will be observed
 	// by NodeLister and Algorithm.
 	SchedulerCache internalcache.Cache
 
+	// 指向 genericScheduler 对象
 	Algorithm core.ScheduleAlgorithm
 
 	// NextPod should be a function that blocks until the next pod
@@ -89,14 +92,24 @@ type Scheduler struct {
 	client clientset.Interface
 }
 
+// schedulerOptions 调度器选项
 type schedulerOptions struct {
+	// 调度器的算法源
 	schedulerAlgorithmSource schedulerapi.SchedulerAlgorithmSource
+	// percentageOfNodesToScore 是用于指定一个百分比值, 一旦发现可用于运行 Pod 的节点与所有节点的百分比值达到该指定的
+	// 百分比值, 那么调度器将停止搜索集群中更多可运行该 Pod 的节点. 这有助于提高调度器的性能.
+	// 注意: 调度器会始终尝试至少查找 "minFeasibleNodesToFind" 个可行节点, 而不管该标志设置的百分比值是多少.
 	percentageOfNodesToScore int32
+	// 不可调度的 Pods 的初始 backoff（退避） 秒数, 没有指定, 则默认为 1s
 	podInitialBackoffSeconds int64
+	// 不可调度的 Pods 的最大 backoff（退避） 秒数. 必须大于或等于 podInitialBackoffSeconds.
+	// 没有指定, 则默认 10s.
 	podMaxBackoffSeconds     int64
 	// Contains out-of-tree plugins to be merged with the in-tree registry.
+	// 包含要与 in-tree 注册表 registry 合并的树外插件.
 	frameworkOutOfTreeRegistry frameworkruntime.Registry
 	profiles                   []schedulerapi.KubeSchedulerProfile
+	// 扩展调度器列表
 	extenders                  []schedulerapi.Extender
 	frameworkCapturer          FrameworkCapturer
 }
@@ -106,6 +119,8 @@ type Option func(*schedulerOptions)
 
 // WithProfiles sets profiles for Scheduler. By default, there is one profile
 // with the name "default-scheduler".
+//
+// WithProfiles 设置调度器的 profiles. 默认情况下, 有一个名为 "default-scheduler" 的 profile.
 func WithProfiles(p ...schedulerapi.KubeSchedulerProfile) Option {
 	return func(o *schedulerOptions) {
 		o.profiles = p
@@ -128,6 +143,7 @@ func WithAlgorithmSource(source schedulerapi.SchedulerAlgorithmSource) Option {
 }
 
 // WithPercentageOfNodesToScore sets percentageOfNodesToScore for Scheduler, the default value is 50
+// WithPercentageOfNodesToScore 为调度器设置 percentageOfNodesToScore, 默认 50
 func WithPercentageOfNodesToScore(percentageOfNodesToScore int32) Option {
 	return func(o *schedulerOptions) {
 		o.percentageOfNodesToScore = percentageOfNodesToScore
@@ -164,6 +180,8 @@ func WithExtenders(e ...schedulerapi.Extender) Option {
 }
 
 // FrameworkCapturer is used for registering a notify function in building framework.
+//
+// FrameworkCapturer 用于在构建框架（framework）中注册的通知功能.
 type FrameworkCapturer func(schedulerapi.KubeSchedulerProfile)
 
 // WithBuildFrameworkCapturer sets a notify function for getting buildFramework details.
@@ -187,6 +205,7 @@ var defaultSchedulerOptions = schedulerOptions{
 }
 
 // New returns a Scheduler
+// New 实例化 Scheduler 对象
 func New(client clientset.Interface,
 	informerFactory informers.SharedInformerFactory,
 	recorderFactory profile.RecorderFactory,
@@ -198,18 +217,27 @@ func New(client clientset.Interface,
 		stopEverything = wait.NeverStop
 	}
 
+	// 首先使用带有默认值的 schedulerOptions 结构体对象 defaultSchedulerOptions
 	options := defaultSchedulerOptions
+	// opts 是一系列传入的 Withxxx 回调函数, 这些函数是将 cc.ComponentConfig 中的相关配置覆盖 options 中的默认配置,
+	// 这样便将用户通过命令行传递的所有选项与 kube-scheduler 自身的默认值进行了覆盖和融合. options 对象即为融合后的
+	// 调度策略相关的参数.
 	for _, opt := range opts {
 		opt(&options)
 	}
 
+	// 构建调度器缓存 schedulerCache 对象, 并在一个 goroutine 中启动该 schedulerCache,
+	// 用于定时清理过期的 assumedPod.
 	schedulerCache := internalcache.New(30*time.Second, stopEverything)
 
+	// 向 registry（注册表）注册所有的树内（in-tree）插件
 	registry := frameworkplugins.NewInTreeRegistry()
+	// 将树外插件合并到 registry 中
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {
 		return nil, err
 	}
 
+	// 实例化一个空的 Snapshot 对象
 	snapshot := internalcache.NewEmptySnapshot()
 
 	configurator := &Configurator{
@@ -228,12 +256,15 @@ func New(client clientset.Interface,
 		frameworkCapturer:        options.frameworkCapturer,
 	}
 
+	// 注册所有的指标监控
 	metrics.Register()
 
-	// 实例化调度算法函数
+	// 实例化一个空的调度器对象
 	var sched *Scheduler
+	// 获取参数中指定的调度算法源
 	source := options.schedulerAlgorithmSource
 	switch {
+	// 通过名称 Provider 的方式实例化调度器
 	case source.Provider != nil:
 		// Create the config from a named algorithm provider.
 		sc, err := configurator.createFromProvider(*source.Provider)
@@ -241,6 +272,7 @@ func New(client clientset.Interface,
 			return nil, fmt.Errorf("couldn't create scheduler using provider %q: %v", *source.Provider, err)
 		}
 		sched = sc
+	// 通过 --policy-config-file 参数指定调度策略文件
 	case source.Policy != nil:
 		// Create the config from a user specified policy source.
 		policy := &schedulerapi.Policy{}
@@ -312,9 +344,13 @@ func initPolicyFromConfigMap(client clientset.Interface, policyRef *schedulerapi
 }
 
 // Run begins watching and scheduling. It starts scheduling and blocked until the context is done.
+//
+// Run 开始监控和调度. 它开始调度并阻塞, 直到 ctx 终止.
 func (sched *Scheduler) Run(ctx context.Context) {
+	// 启动调度队列
 	sched.SchedulingQueue.Run()
 	// sched.scheduleOne 是 kube-scheduler 组件的调度主逻辑, 它通过 wait.UntilWithContext 定时器执行.
+	// 内部会定时调用 sched.scheduleOne 函数.
 	wait.UntilWithContext(ctx, sched.scheduleOne, 0)
 	sched.SchedulingQueue.Close()
 }
@@ -383,6 +419,11 @@ func (sched *Scheduler) assume(assumed *v1.Pod, host string) error {
 // bind binds a pod to a given node defined in a binding object.
 // The precedence for binding is: (1) extenders and (2) framework plugins.
 // We expect this to run asynchronously, so we handle binding metrics internally.
+//
+// 当调度器为 Pod 资源对象选择了一个合适的节点时, 通过 sched.bind 函数将合适的节点与 Pod 资源对象绑定在一起.
+// 该过程是异步的, 无须等待 bind 操作完成即可进入下一轮的调度周期.
+// 由 kube-scheduler 调度器通过 ClientSet 向 kube-apiserver 发送 v1.Binding 资源对象, 如果绑定失败, 则执行回滚操作;
+// 如果绑定成功, 则当前调度周期完成, 后面运行 Pod 资源对象的工作交给绑定节点上的 kubelet 组件.
 func (sched *Scheduler) bind(ctx context.Context, fwk framework.Framework, assumed *v1.Pod, targetNode string, state *framework.CycleState) (err error) {
 	start := time.Now()
 	defer func() {
@@ -457,6 +498,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	start := time.Now()
 	state := framework.NewCycleState()
 	state.SetRecordPluginMetrics(rand.Intn(100) < pluginMetricsSamplePercent)
+	// 创建调度循环上下文对象
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// 执行预选调度算法和优选调度算法, 为 Pod 资源对象选择一个合适的节点.
@@ -466,12 +508,21 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		// preempt, with the expectation that the next time the pod is tried for scheduling it
 		// will fit due to the preemption. It is also possible that a different pod will schedule
 		// into the resources that were preempted, but this is harmless.
+		//
+		// Schedule() 可能会失败, 因为没有找到符合条件的节点, 因此会尝试进行抢占.
+		//
+		// 抢占机制:
+		// 当高优先级的 Pod 资源对象没有找到合适的节点时, kube-scheduler 调度器会尝试抢占低优先级的 Pod 资源对象的节点.
+		// 抢占过程是将低优先级的 Pod 资源对象从所在的节点上驱逐走, 再让高优先级的 Pod 资源对象运行在该节点上, 被驱逐走的
+		// 低优先级的 Pod 资源对象会重新进入调度队列并等待再次选择合适的节点.
 		nominatedNode := ""
 		if fitError, ok := err.(*core.FitError); ok {
+			// 如果没有注册 PostFilter 插件, 则不会执行抢占机制
 			if !fwk.HasPostFilterPlugins() {
 				klog.V(3).Infof("No PostFilter plugins are registered, so no preemption will be performed.")
 			} else {
 				// Run PostFilter plugins to try to make the pod schedulable in a future scheduling cycle.
+				// 运行 PostFilter plugins 来执行抢占机制
 				result, status := fwk.RunPostFilterPlugins(ctx, state, pod, fitError.FilteredNodesStatuses)
 				if status.Code() == framework.Error {
 					klog.Errorf("Status after running PostFilter plugins for pod %v/%v: %v", pod.Namespace, pod.Name, status)
@@ -585,6 +636,8 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 			return
 		}
 
+		// 当调度器为 Pod 资源对象选择了一个合适的节点时, 通过 sched.bind 函数将合适的节点与 Pod 资源对象绑定在一起.
+		// 该过程是异步的, 无须等待 bind 操作完成即可进入下一轮的调度周期.
 		err := sched.bind(bindingCycleCtx, fwk, assumedPod, scheduleResult.SuggestedHost, state)
 		if err != nil {
 			metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))

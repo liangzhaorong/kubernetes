@@ -83,6 +83,8 @@ func makeTransport(config *schedulerapi.Extender) (http.RoundTripper, error) {
 }
 
 // NewHTTPExtender creates an HTTPExtender object.
+//
+// NewHTTPExtender 创建一个 HTTPExtender 对象
 func NewHTTPExtender(config *schedulerapi.Extender) (framework.Extender, error) {
 	if config.HTTPTimeout.Duration.Nanoseconds() == 0 {
 		config.HTTPTimeout.Duration = time.Duration(DefaultExtenderTimeout)

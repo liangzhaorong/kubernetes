@@ -62,6 +62,9 @@ type KubeSchedulerConfiguration struct {
 
 	// DebuggingConfiguration holds configuration for Debugging related features
 	// TODO: We might wanna make this a substruct like Debugging componentbaseconfigv1alpha1.DebuggingConfiguration
+	//
+	// DebuggingConfiguration 存储调试相关的功能配置.
+	// 备注: 我们可能将其作为像 "Debugging componentbaseconfigv1alpha1.DebuggingConfiguration" 这样的子结构.
 	componentbaseconfigv1alpha1.DebuggingConfiguration `json:",inline"`
 
 	// PercentageOfNodesToScore is the percentage of all nodes that once found feasible

@@ -35,6 +35,9 @@ const (
 )
 
 // ImageLocality is a score plugin that favors nodes that already have requested pod container's images.
+//
+// ImageLocality 是一个 score 插件, 优先选择那些已经有所请求的 pod 容器镜像的节点 (即本地已经存在
+// 该 pod 的容器所请求的镜像节点得分越高).
 type ImageLocality struct {
 	handle framework.Handle
 }

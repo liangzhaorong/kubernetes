@@ -29,6 +29,9 @@ import (
 // Config has all the context to run a Scheduler
 type Config struct {
 	// ComponentConfig is the scheduler server's configuration object.
+	//
+	// ComponentConfig 保存调度器策略相关参数. 由 --config 配置, 若指定了该参数, 则使用该参数指定的配置文件中的配置;
+	// 否则, 则使用旧的、将要废弃的调度器策略配置.
 	ComponentConfig kubeschedulerconfig.KubeSchedulerConfiguration
 
 	// LoopbackClientConfig is a config for a privileged loopback connection
@@ -38,10 +41,11 @@ type Config struct {
 	InsecureMetricsServing *apiserver.DeprecatedInsecureServingInfo // non-nil if metrics should be served independently
 	Authentication         apiserver.AuthenticationInfo
 	Authorization          apiserver.AuthorizationInfo
+	// HTTPS 服务相关配置
 	SecureServing          *apiserver.SecureServingInfo
 
 	Client          clientset.Interface
-	InformerFactory informers.SharedInformerFactory
+	InformerFactory informers.SharedInformerFactory // 为所有已知的组版本下的资源提供一个共享的 informer
 
 	//lint:ignore SA1019 this deprecated field still needs to be used for now. It will be removed once the migration is done.
 	EventBroadcaster events.EventBroadcasterAdapter

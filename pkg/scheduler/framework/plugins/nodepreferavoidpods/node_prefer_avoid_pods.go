@@ -29,6 +29,8 @@ import (
 
 // NodePreferAvoidPods is a plugin that priorities nodes according to the node annotation
 // "scheduler.alpha.kubernetes.io/preferAvoidPods".
+//
+// NodePreferAvoidPods 插件可根据 node 的 annotation "scheduler.alpha.kubernetes.io/preferAvoidPods" 为节点确定优先级.
 type NodePreferAvoidPods struct {
 	handle framework.Handle
 }
@@ -45,11 +47,13 @@ func (pl *NodePreferAvoidPods) Name() string {
 
 // Score invoked at the score extension point.
 func (pl *NodePreferAvoidPods) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
+	// 从 snapshot 中获取指定节点名的节点信息对象
 	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
 	if err != nil {
 		return 0, framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %w", nodeName, err))
 	}
 
+	// 获取节点资源对象 v1.Node
 	node := nodeInfo.Node()
 	if node == nil {
 		return 0, framework.NewStatus(framework.Error, "node not found")
@@ -59,6 +63,7 @@ func (pl *NodePreferAvoidPods) Score(ctx context.Context, state *framework.Cycle
 	if controllerRef != nil {
 		// Ignore pods that are owned by other controller than ReplicationController
 		// or ReplicaSet.
+		// 忽略由 ReplicationController 或 ReplicaSet 以外的其他 controller 拥有的 Pod.
 		if controllerRef.Kind != "ReplicationController" && controllerRef.Kind != "ReplicaSet" {
 			controllerRef = nil
 		}

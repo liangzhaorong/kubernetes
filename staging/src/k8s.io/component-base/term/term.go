@@ -26,6 +26,9 @@ import (
 // TerminalSize returns the current width and height of the user's terminal. If it isn't a terminal,
 // nil is returned. On error, zero values are returned for width and height.
 // Usually w must be the stdout of the process. Stderr won't work.
+//
+// TerminalSize 返回用户终端的当前宽度和高度. 如果不是终端, 则返回 nil, 发生错误时, 将返回宽度和高度的 0 值.
+// 通常输入参数 w 必须是当前进程的标准输出. stderr 无法正常工作.
 func TerminalSize(w io.Writer) (int, int, error) {
 	outFd, isTerminal := term.GetFdInfo(w)
 	if !isTerminal {

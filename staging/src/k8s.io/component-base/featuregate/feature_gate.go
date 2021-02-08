@@ -33,6 +33,8 @@ import (
 type Feature string
 
 const (
+	// --feature-gates: 用于设置一组 Alpha 阶段的特性功能, 通过键值对进行描述. 针对每个组件, 使用 --feature-gates
+	// 参数来开启或关闭一个特性. 当前 Kubernetes 版本支持大约 68 个 feature-gates 特性.
 	flagName = "feature-gates"
 
 	// allAlphaGate is a global toggle for alpha features. Per-feature key
@@ -303,6 +305,8 @@ func (f *featureGate) Enabled(key Feature) bool {
 }
 
 // AddFlag adds a flag for setting global feature gates to the specified FlagSet.
+//
+// AddFlag 实验性功能相关参数
 func (f *featureGate) AddFlag(fs *pflag.FlagSet) {
 	f.lock.Lock()
 	// TODO(mtaufen): Shouldn't we just close it on the first Set/SetFromMap instead?
@@ -313,6 +317,8 @@ func (f *featureGate) AddFlag(fs *pflag.FlagSet) {
 	f.lock.Unlock()
 
 	known := f.KnownFeatures()
+	// --feature-gates: 用于设置一组 Alpha 阶段的特性功能, 通过键值对进行描述. 针对每个组件, 使用 --feature-gates
+	// 参数来开启或关闭一个特性. 当前 Kubernetes 版本支持大约 68 个 feature-gates 特性.
 	fs.Var(f, flagName, ""+
 		"A set of key=value pairs that describe feature gates for alpha/experimental features. "+
 		"Options are:\n"+strings.Join(known, "\n"))

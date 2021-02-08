@@ -220,6 +220,7 @@ func (sched *Scheduler) deletePodFromSchedulingQueue(obj interface{}) {
 	fwk.RejectWaitingPod(pod.UID)
 }
 
+// addPodToCache 将 Pod 资源对象分别存储到调度队列（SchedulingQueue）和调度缓存（SchedulerCache）中
 func (sched *Scheduler) addPodToCache(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
@@ -228,6 +229,7 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 	}
 	klog.V(3).Infof("add event for scheduled pod %s/%s ", pod.Namespace, pod.Name)
 
+	// 添加到调度器缓存 SchedulerCache 中
 	if err := sched.SchedulerCache.AddPod(pod); err != nil {
 		klog.Errorf("scheduler cache AddPod failed: %v", err)
 	}
@@ -298,6 +300,7 @@ func (sched *Scheduler) deletePodFromCache(obj interface{}) {
 }
 
 // assignedPod selects pods that are assigned (scheduled and running).
+// assignedPod 检测该 Pod 是否已被指定要求调度到指定的节点, 通过 pod.Spec.NodeName 的值不为空来判定
 func assignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
 }
@@ -363,14 +366,20 @@ func (sched *Scheduler) skipPodUpdate(pod *v1.Pod) bool {
 
 // addAllEventHandlers is a helper function used in tests and in Scheduler
 // to add event handlers for various informers.
+//
 // addAllEventHandlers 为所有 Informer 对象添加对资源事件的监控并设置回调函数
+// kube-scheduler 组件依赖于多个资源的 Informer 对象, 用于监控相应资源对象的事件.
+// 如, 通过 PodInformer 监控 Pod 资源对象, 当某个 Pod 被创建时, kube-scheduler 组件监控到该事件并为
+// 该 Pod 根据调度算法选择出合适的节点（Node）.
 func addAllEventHandlers(
 	sched *Scheduler,
 	informerFactory informers.SharedInformerFactory,
 ) {
 	// scheduled pod cache
+	// 监控已指定调度到指定节点的 Pod 资源对象
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
+			// 过滤出已指定调度到指定节点的 Pod 资源对象, 然后将其传递给下一步 Handler 函数进行处理
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
@@ -386,6 +395,7 @@ func addAllEventHandlers(
 					return false
 				}
 			},
+			// 监控 Pod 资源对象, 并将 Pod 资源对象分别存储到调度队列（SchedulingQueue）和调度缓存（SchedulerCache）中
 			Handler: cache.ResourceEventHandlerFuncs{
 				AddFunc:    sched.addPodToCache,
 				UpdateFunc: sched.updatePodInCache,
@@ -394,6 +404,7 @@ func addAllEventHandlers(
 		},
 	)
 	// unscheduled pod queue
+	// 监控未调度的 Pod 资源对象
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -411,6 +422,7 @@ func addAllEventHandlers(
 					return false
 				}
 			},
+			// 将未调度的 Pod 资源对象存储到调度队列（SchedulingQueue）中
 			Handler: cache.ResourceEventHandlerFuncs{
 				AddFunc:    sched.addPodToSchedulingQueue,
 				UpdateFunc: sched.updatePodInSchedulingQueue,
@@ -419,6 +431,7 @@ func addAllEventHandlers(
 		},
 	)
 
+	// 监控所有的 Node 资源对象
 	informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    sched.addNodeToCache,
@@ -427,6 +440,7 @@ func addAllEventHandlers(
 		},
 	)
 
+	// 若启用了 CSINode 功能, 则监控增加/更新的 CSINode 资源对象
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSINodeInfo) {
 		informerFactory.Storage().V1().CSINodes().Informer().AddEventHandler(
 			cache.ResourceEventHandlerFuncs{
@@ -437,6 +451,7 @@ func addAllEventHandlers(
 	}
 
 	// On add and update of PVs.
+	// 监控新增/更新的 PV 资源对象
 	informerFactory.Core().V1().PersistentVolumes().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			// MaxPDVolumeCountPredicate: since it relies on the counts of PV.
@@ -446,6 +461,7 @@ func addAllEventHandlers(
 	)
 
 	// This is for MaxPDVolumeCountPredicate: add/update PVC will affect counts of PV when it is bound.
+	// 监控新增/更新的 PVC 资源对象
 	informerFactory.Core().V1().PersistentVolumeClaims().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    sched.onPvcAdd,
@@ -456,6 +472,7 @@ func addAllEventHandlers(
 	// This is for ServiceAffinity: affected by the selector of the service is updated.
 	// Also, if new service is added, equivalence cache will also become invalid since
 	// existing pods may be "captured" by this service and change this predicate result.
+	// 监控 新增/更新/删除的 Service 资源对象
 	informerFactory.Core().V1().Services().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    sched.onServiceAdd,
@@ -464,6 +481,7 @@ func addAllEventHandlers(
 		},
 	)
 
+	// 监控 新增 的 StorageClass 资源对象
 	informerFactory.Storage().V1().StorageClasses().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: sched.onStorageClassAdd,

@@ -28,6 +28,7 @@ import (
 )
 
 // TaintToleration is a plugin that checks if a pod tolerates a node's taints.
+// TaintToleration 插件用于检查一个 pod 是否可以容忍节点的污点.
 type TaintToleration struct {
 	handle framework.Handle
 }

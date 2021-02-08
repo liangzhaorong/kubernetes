@@ -42,6 +42,7 @@ const (
 
 // All the histogram based metrics have 1ms as size for the smallest bucket.
 var (
+	// 计数器型指标,
 	scheduleAttempts = metrics.NewCounterVec(
 		&metrics.CounterOpts{
 			Subsystem:      SchedulerSubsystem,

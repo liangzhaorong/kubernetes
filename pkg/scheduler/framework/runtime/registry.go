@@ -26,6 +26,7 @@ import (
 )
 
 // PluginFactory is a function that builds a plugin.
+// PluginFactory 是一个用于构建插件的函数.
 type PluginFactory = func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error)
 
 // DecodeInto decodes configuration whose type is *runtime.Unknown to the interface into.
@@ -55,6 +56,9 @@ func DecodeInto(obj runtime.Object, into interface{}) error {
 // Registry is a collection of all available plugins. The framework uses a
 // registry to enable and initialize configured plugins.
 // All plugins must be in the registry before initializing the framework.
+//
+// Registry 是所有可用插件的集合. 框架使用 registry（注册表）来启用和初始化已配置的插件.
+// 在初始化框架前, 所有的插件都必须在注册表中.
 type Registry map[string]PluginFactory
 
 // Register adds a new plugin to the registry. If a plugin with the same name

@@ -31,6 +31,8 @@ import (
 )
 
 // SelectorSpread is a plugin that calculates selector spread priority.
+//
+// SelectorSpread 是一个用于计算 selector spread 优先级的插件. 用于 PreScore 和 Score 阶段.
 type SelectorSpread struct {
 	sharedLister           framework.SharedLister
 	services               corelisters.ServiceLister
@@ -72,6 +74,8 @@ func (s *preScoreState) Clone() framework.StateData {
 // skipSelectorSpread returns true if the pod's TopologySpreadConstraints are specified.
 // Note that this doesn't take into account default constraints defined for
 // the PodTopologySpread plugin.
+//
+// skipSelectorSpread 如果指定了 pod 的 TopologySpreadConstraints, 则该函数返回 true.
 func skipSelectorSpread(pod *v1.Pod) bool {
 	return len(pod.Spec.TopologySpreadConstraints) != 0
 }
@@ -197,6 +201,7 @@ func (pl *SelectorSpread) PreScore(ctx context.Context, cycleState *framework.Cy
 }
 
 // New initializes a new plugin and returns it.
+// New 初始化一个新的 plugin 并返回该插件.
 func New(_ runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	sharedLister := handle.SnapshotSharedLister()
 	if sharedLister == nil {

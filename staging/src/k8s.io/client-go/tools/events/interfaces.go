@@ -76,7 +76,8 @@ type EventSink interface {
 //
 // Deprecated: This interface will be removed once migration is completed.
 type EventBroadcasterAdapter interface {
-	// StartRecordingToSink starts sending events received from the specified eventBroadcaster.
+	// StartRecordingToSink starts sending events received from the specified eventBroadcaster./
+	// StartRecordingToSink 将关键性事件上报给 kube-apiserver.
 	StartRecordingToSink(stopCh <-chan struct{})
 
 	// NewRecorder creates a new Event Recorder with specified name.

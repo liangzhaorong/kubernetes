@@ -450,7 +450,10 @@ type loggingT struct {
 	// Boolean flags. Not handled atomically because the flag.Value interface
 	// does not let us avoid the =true, and that shorthand is necessary for
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
+	//
+	// --logtostderr 配置, 为 true 则表示日志写入到 stderr 中
 	toStderr     bool // The -logtostderr flag.
+	// --alsologtostderr 配置, 为 true 表示日志可同时写入 stderr 和日志文件中
 	alsoToStderr bool // The -alsologtostderr flag.
 
 	// Level flag. Handled atomically.
@@ -482,18 +485,25 @@ type loggingT struct {
 	// These flags are modified only under lock, although verbosity may be fetched
 	// safely using atomic.LoadInt32.
 	vmodule   moduleSpec // The state of the -vmodule flag.
+	// --v 配置, 配置日志输出级别
 	verbosity Level      // V logging level, the value of the -v flag/
 
 	// If non-empty, overrides the choice of directory in which to write logs.
 	// See createLogDirs for the full list of possible destinations.
+	//
+	// --log_dir 参数配置, 指定日志文件写入的目录
 	logDir string
 
 	// If non-empty, specifies the path of the file to write logs. mutually exclusive
 	// with the log_dir option.
+	//
+	// --log_file 配置, 指定日志将写入到该文件
 	logFile string
 
 	// When logFile is specified, this limiter makes sure the logFile won't exceeds a certain size. When exceeds, the
 	// logFile will be cleaned up. If this value is 0, no size limitation will be applied to logFile.
+	//
+	// --log_file_max_size 配置, 指定日志文件的最大大小. 若超过该值, logFile 将被清空. 若设置为 0, 则没有限制
 	logFileMaxSizeMB uint64
 
 	// If true, do not add the prefix headers, useful when used with SetOutput

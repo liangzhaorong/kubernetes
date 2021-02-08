@@ -24,13 +24,21 @@ import (
 // Extender is an interface for external processes to influence scheduling
 // decisions made by Kubernetes. This is typically needed for resources not directly
 // managed by Kubernetes.
+//
+// Extender 是外部调度器的接口, 可以影响 Kubernets 做出的调度决策. 对于不是直接由 Kubernetes 管理的资源,
+// 通常需要使用 Extender.
 type Extender interface {
 	// Name returns a unique name that identifies the extender.
+	//
+	// Name 返回标识 extender 的唯一名称.
 	Name() string
 
 	// Filter based on extender-implemented predicate functions. The filtered list is
 	// expected to be a subset of the supplied list. failedNodesMap optionally contains
 	// the list of failed nodes and failure reasons.
+	//
+	// Filter 是基于 extender 实现的预选调度函数. 预期过滤后的列表是提供的列表的子集. failedNodesMap 可以选择
+	// 包含失败节点和失败原因的列表.
 	Filter(pod *v1.Pod, nodes []*v1.Node) (filteredNodes []*v1.Node, failedNodesMap extenderv1.FailedNodesMap, err error)
 
 	// Prioritize based on extender-implemented priority functions. The returned scores & weight
@@ -39,9 +47,13 @@ type Extender interface {
 	Prioritize(pod *v1.Pod, nodes []*v1.Node) (hostPriorities *extenderv1.HostPriorityList, weight int64, err error)
 
 	// Bind delegates the action of binding a pod to a node to the extender.
+	//
+	// Bind 将 pod 绑定到节点的操作委托给 extender.
 	Bind(binding *v1.Binding) error
 
 	// IsBinder returns whether this extender is configured for the Bind method.
+	//
+	// IsBinder 返回是否将该 extender 配置为 Bind 方法.
 	IsBinder() bool
 
 	// IsInterested returns true if at least one extended resource requested by

@@ -1030,7 +1030,7 @@ func schema_pkg_apis_meta_v1_APIGroup(ref common.ReferenceCallback) common.OpenA
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "APIGroup contains the name, the supported versions, and the preferred version of a group.",
+				Description: "APIGroup contains the name, the supported versions, and the preferred version of a group. APIGroup 资源组. 特点如下: 1. 将资源按功能划分资源组, 允许单独启用/禁用资源组. 也可单独启用/禁用资源组中的资源. 2. 不同资源组中拥有不同的资源版本. 3. 支持同名的资源种类(Kind)存在于不同的资源组内.\n\nKubernetes 支持两类资源组:\n  拥有组名的资源组: 格式为 <group>/<version>/<resource>, 如 apps/v1/deployments\n  没有组名的资源组: 被称为 Core Groups (即核心资源组). 格式为 /<version>/<resource>, 如 /v1/pods",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1049,7 +1049,7 @@ func schema_pkg_apis_meta_v1_APIGroup(ref common.ReferenceCallback) common.OpenA
 					},
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "name is the name of the group.",
+							Description: "name is the name of the group. 资源组的名称",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1057,7 +1057,7 @@ func schema_pkg_apis_meta_v1_APIGroup(ref common.ReferenceCallback) common.OpenA
 					},
 					"versions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "versions are the versions supported in this group.",
+							Description: "versions are the versions supported in this group. 资源组下所支持的资源版本",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1071,7 +1071,7 @@ func schema_pkg_apis_meta_v1_APIGroup(ref common.ReferenceCallback) common.OpenA
 					},
 					"preferredVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "preferredVersion is the version preferred by the API server, which probably is the storage version.",
+							Description: "preferredVersion is the version preferred by the API server, which probably is the storage version. 首选版本. 当一个资源组内存在多个资源版本时, Kubernetes API Server 在使用资源时会选择一个首选版本作为当前版本",
 							Default:     map[string]interface{}{},
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery"),
 						},
@@ -1152,7 +1152,7 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 				Properties: map[string]spec.Schema{
 					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "name is the plural name of the resource.",
+							Description: "name is the plural name of the resource. 资源名称",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1160,7 +1160,7 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 					},
 					"singularName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "singularName is the singular name of the resource.  This allows clients to handle plural and singular opaquely. The singularName is more correct for reporting status on a single item and both singular and plural are allowed from the kubectl CLI interface.",
+							Description: "singularName is the singular name of the resource.  This allows clients to handle plural and singular opaquely. The singularName is more correct for reporting status on a single item and both singular and plural are allowed from the kubectl CLI interface. 资源的单数名称, 它必须由小写字母组成, 默认使用资源种类 (Kind) 的小写形式进行命名. 如 Pod 资源的单数名称为 pod. 复数名称为 pods.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1168,7 +1168,7 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 					},
 					"namespaced": {
 						SchemaProps: spec.SchemaProps{
-							Description: "namespaced indicates if a resource is namespaced or not.",
+							Description: "namespaced indicates if a resource is namespaced or not. 资源是否拥有所属命名空间.",
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
@@ -1176,21 +1176,21 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 					},
 					"group": {
 						SchemaProps: spec.SchemaProps{
-							Description: "group is the preferred group of the resource.  Empty implies the group of the containing resource list. For subresources, this may have a different value, for example: Scale\".",
+							Description: "group is the preferred group of the resource.  Empty implies the group of the containing resource list. For subresources, this may have a different value, for example: Scale\". 资源所在的资源组名称",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
-							Description: "version is the preferred version of the resource.  Empty implies the version of the containing resource list For subresources, this may have a different value, for example: v1 (while inside a v1beta1 version of the core resource's group)\".",
+							Description: "version is the preferred version of the resource.  Empty implies the version of the containing resource list For subresources, this may have a different value, for example: v1 (while inside a v1beta1 version of the core resource's group)\". 资源所在的资源版本.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "kind is the kind for the resource (e.g. 'Foo' is the kind for a resource 'foo')",
+							Description: "kind is the kind for the resource (e.g. 'Foo' is the kind for a resource 'foo') 资源种类",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1198,7 +1198,7 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 					},
 					"verbs": {
 						SchemaProps: spec.SchemaProps{
-							Description: "verbs is a list of supported kube verbs (this includes get, list, watch, create, update, patch, delete, deletecollection, and proxy)",
+							Description: "verbs is a list of supported kube verbs (this includes get, list, watch, create, update, patch, delete, deletecollection, and proxy) 资源可操作的方法列表, 如 get, list, watch, create, update, patch, delete, deletecollection, 以及 proxy",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1213,7 +1213,7 @@ func schema_pkg_apis_meta_v1_APIResource(ref common.ReferenceCallback) common.Op
 					},
 					"shortNames": {
 						SchemaProps: spec.SchemaProps{
-							Description: "shortNames is a list of suggested short names of the resource.",
+							Description: "shortNames is a list of suggested short names of the resource. 资源的简称, 如 Pod 资源的简称为 po",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1330,7 +1330,7 @@ func schema_pkg_apis_meta_v1_APIVersions(ref common.ReferenceCallback) common.Op
 					},
 					"versions": {
 						SchemaProps: spec.SchemaProps{
-							Description: "versions are the api versions that are available.",
+							Description: "versions are the api versions that are available. 所支持的资源版本列表",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

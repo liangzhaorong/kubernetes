@@ -30,6 +30,8 @@ func IsControlledBy(obj Object, owner Object) bool {
 }
 
 // GetControllerOf returns a pointer to a copy of the controllerRef if controllee has a controller
+//
+// GetControllerOf 如果 controllee 有控制器（controller）, 则返回一个指向 controllerRef 的副本.
 func GetControllerOf(controllee Object) *OwnerReference {
 	ref := GetControllerOfNoCopy(controllee)
 	if ref == nil {
@@ -40,7 +42,10 @@ func GetControllerOf(controllee Object) *OwnerReference {
 }
 
 // GetControllerOf returns a pointer to the controllerRef if controllee has a controller
+//
+// GetControllerOfNoCopy 如果 controllee 有 controller（控制器）, 则返回指向 controllerRef 的副本.
 func GetControllerOfNoCopy(controllee Object) *OwnerReference {
+	// 获取这个对象（如 Pod）的 OwnerReference 列表
 	refs := controllee.GetOwnerReferences()
 	for i := range refs {
 		if refs[i].Controller != nil && *refs[i].Controller {

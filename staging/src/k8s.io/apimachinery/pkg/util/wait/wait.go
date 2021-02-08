@@ -95,6 +95,8 @@ func Until(f func(), period time.Duration, stopCh <-chan struct{}) {
 // UntilWithContext is syntactic sugar on top of JitterUntilWithContext
 // with zero jitter factor and with sliding = true (which means the timer
 // for period starts after the f completes).
+//
+// UntilWithContext 直到 context 终止, 否则每 period 周期调用一次 f 回调函数.
 func UntilWithContext(ctx context.Context, f func(context.Context), period time.Duration) {
 	JitterUntilWithContext(ctx, f, period, 0.0, true)
 }

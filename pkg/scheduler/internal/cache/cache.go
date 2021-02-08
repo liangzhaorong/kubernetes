@@ -39,7 +39,13 @@ var (
 // It automatically starts a go routine that manages expiration of assumed pods.
 // "ttl" is how long the assumed pod will get expired.
 // "stop" is the channel that would close the background goroutine.
+//
+// New 返回 Cache 的实现.
+// 它会自动启动 goroutine, 该 goroutine 管理 assumed pods 的过期.
+// "ttl" 是 assumed pod 的生命周期时长.
+// "stop" 是用于关闭后台 goroutine 的 channel.
 func New(ttl time.Duration, stop <-chan struct{}) Cache {
+	// 实例化 schedulerCache 调度器缓存对象
 	cache := newSchedulerCache(ttl, cleanAssumedPeriod, stop)
 	cache.run()
 	return cache
@@ -48,45 +54,66 @@ func New(ttl time.Duration, stop <-chan struct{}) Cache {
 // nodeInfoListItem holds a NodeInfo pointer and acts as an item in a doubly
 // linked list. When a NodeInfo is updated, it goes to the head of the list.
 // The items closer to the head are the most recently updated items.
+//
+// nodeInfoListItem 包含一个 NodeInfo 指针, 并充当双向链表的一项. 更新 NodeInfo 时,
+// 它将会移动到链表的头部. 靠近链表头部的项是最近更新的项.
 type nodeInfoListItem struct {
 	info *framework.NodeInfo
 	next *nodeInfoListItem
 	prev *nodeInfoListItem
 }
 
+// schedulerCache 用于缓存已经成功经过预选和优选调度算法, 成功计算到合适的调度节点,
+// 并进入 binding 阶段的 Pod（即 assumedPod）.
 type schedulerCache struct {
-	stop   <-chan struct{}
-	ttl    time.Duration
-	period time.Duration
+	stop   <-chan struct{} // 用于控制关闭后台运行的 goroutine 的 channel
+	ttl    time.Duration   // assumedPod 的生命周期时长
+	period time.Duration   // 清理 assumedPod 的周期, 默认 1s
 
 	// This mutex guards all fields within this cache struct.
 	mu sync.RWMutex
 	// a set of assumed pod keys.
 	// The key could further be used to get an entry in podStates.
+	//
+	// assumedPod 的 key 的集合.
+	// 这些 key 可进一步用于获取 podStates 中的条目
 	assumedPods map[string]bool
 	// a map from pod key to podState.
+	//
+	// 存储 assumedPod key 与 podState 之间的映射关系
 	podStates map[string]*podState
+	// key 为 assumedPod 将要调度的节点名
 	nodes     map[string]*nodeInfoListItem
 	// headNode points to the most recently updated NodeInfo in "nodes". It is the
 	// head of the linked list.
+	//
+	// headNode 指向 "nodes" 中最近更新的 NodeInfo. 它是链表的头部.
 	headNode *nodeInfoListItem
 	nodeTree *nodeTree
 	// A map from image name to its imageState.
+	//
+	// 存储镜像名称与 imageState 之间的映射关系
 	imageStates map[string]*imageState
 }
 
+// podState 记录 assumedPod 的状态, 如过期时间、binding 是否已完成
 type podState struct {
 	pod *v1.Pod
 	// Used by assumedPod to determinate expiration.
+	// 由 assumedPod 用于确定过期时间
 	deadline *time.Time
 	// Used to block cache from expiring assumedPod if binding still runs
+	//
+	// 如果 binding 仍在继续执行, 则用于阻止缓存使过期的 assumedPod 失效. 为 false 表示仍在处理 binding 中
 	bindingFinished bool
 }
 
 type imageState struct {
 	// Size of the image
+	// 镜像的大小
 	size int64
 	// A set of node names for nodes having this image present
+	// 具有该镜像的一组节点名
 	nodes sets.String
 }
 
@@ -462,12 +489,15 @@ func (cache *schedulerCache) removePod(pod *v1.Pod) error {
 		klog.Errorf("node %v not found when trying to remove pod %v", pod.Spec.NodeName, pod.Name)
 		return nil
 	}
+	// 从该节点中移除该 pod 的信息
 	if err := n.info.RemovePod(pod); err != nil {
 		return err
 	}
+	// 若当前节点已经没有 pod 调度到该节点, 且该节点信息已不存在, 则将该节点从 cache.nodes 中移除
 	if len(n.info.Pods) == 0 && n.info.Node() == nil {
 		cache.removeNodeInfoFromList(pod.Spec.NodeName)
 	} else {
+		// 将该节点移动到 nodeInfoList 双向链表的头部
 		cache.moveNodeInfoToHead(pod.Spec.NodeName)
 	}
 	return nil
@@ -721,10 +751,12 @@ func (cache *schedulerCache) removeNodeImageStates(node *v1.Node) {
 	}
 }
 
+// run 在一个 goroutine 中异步执行 schedulerCache 主逻辑
 func (cache *schedulerCache) run() {
 	go wait.Until(cache.cleanupExpiredAssumedPods, cache.period, cache.stop)
 }
 
+// cleanupExpiredAssumedPods 每秒执行一次该函数, 用于清理过期的 assume pods.
 func (cache *schedulerCache) cleanupExpiredAssumedPods() {
 	cache.cleanupAssumedPods(time.Now())
 }
@@ -742,11 +774,13 @@ func (cache *schedulerCache) cleanupAssumedPods(now time.Time) {
 		if !ok {
 			klog.Fatal("Key found in assumed set but not in podStates. Potentially a logical error.")
 		}
+		// 如该 assumedPod 仍在 binding 阶段, 则无法将其置为失效, 跳过处理该 assumedPod.
 		if !ps.bindingFinished {
 			klog.V(5).Infof("Couldn't expire cache for pod %v/%v. Binding is still in progress.",
 				ps.pod.Namespace, ps.pod.Name)
 			continue
 		}
+		// 若该 assumedPod 已过期
 		if now.After(*ps.deadline) {
 			klog.Warningf("Pod %s/%s expired", ps.pod.Namespace, ps.pod.Name)
 			if err := cache.expirePod(key, ps); err != nil {
@@ -756,6 +790,7 @@ func (cache *schedulerCache) cleanupAssumedPods(now time.Time) {
 	}
 }
 
+// expirePod 将过期的 assumedPod 从调度器缓存 schedulerCache 中移除
 func (cache *schedulerCache) expirePod(key string, ps *podState) error {
 	if err := cache.removePod(ps.pod); err != nil {
 		return err

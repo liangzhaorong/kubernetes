@@ -28,6 +28,8 @@ import (
 )
 
 // LeastAllocated is a score plugin that favors nodes with fewer allocation requested resources based on requested resources.
+// LeastAllocated score（打分）plugin（优选调度算法）会计算 Pod 资源对象所需的 CPU 和内存占当前节点可用资源的百分比, 百分比
+// 最小的节点最优, 它的默认权重值为 1.
 type LeastAllocated struct {
 	handle framework.Handle
 	resourceAllocationScorer
@@ -56,6 +58,7 @@ func (la *LeastAllocated) Score(ctx context.Context, state *framework.CycleState
 	//
 	// Details:
 	// (cpu((capacity-sum(requested))*MaxNodeScore/capacity) + memory((capacity-sum(requested))*MaxNodeScore/capacity))/weightSum
+	// 即 (cpu( (总资源-已使用资源) * MaxNodeScore/总资源 ) + memory( (总资源-已使用资源) * MaxNodeScore/总资源 ) ) / weightSum
 	return la.score(pod, nodeInfo)
 }
 

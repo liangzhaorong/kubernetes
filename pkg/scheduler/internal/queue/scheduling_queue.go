@@ -94,6 +94,8 @@ type SchedulingQueue interface {
 }
 
 // NewSchedulingQueue initializes a priority queue as a new scheduling queue.
+//
+// NewSchedulingQueue 实例化一个优先级队列作为新的调度队列 SchedulingQueue
 func NewSchedulingQueue(lessFn framework.LessFunc, opts ...Option) SchedulingQueue {
 	return NewPriorityQueue(lessFn, opts...)
 }
@@ -110,16 +112,28 @@ func NominatedNodeName(pod *v1.Pod) string {
 // pods that are already tried and are determined to be unschedulable. The latter
 // is called unschedulableQ. The third queue holds pods that are moved from
 // unschedulable queues and will be moved to active queue when backoff are completed.
+//
+// PriorityQueue 实现调度队列.
+// PriorityQueue 的头部是优先级最高的 pending pod（待调度 pod）. 该结构具有三个子队列.
+// 一个子队列包含正在考虑进行调度的 pods. 这称为 activeQ, 是一个 Heap（堆）.
+// 另一个队列包含已尝试并且确定为不可调度的 pods. 这称为 unschedulableQ.
+// 第三个队列包含从无法调度的队列（unschedulableQ）中移出的 pods, 并在退避（backoff）完成后将其移到 activeQ.
 type PriorityQueue struct {
 	// PodNominator abstracts the operations to maintain nominated Pods.
+	//
+	// 抽象出管理 nominated pods 的操作.
 	framework.PodNominator
 
 	stop  chan struct{}
 	clock util.Clock
 
 	// pod initial backoff duration.
+	//
+	// pod 的初始退避时长.
 	podInitialBackoffDuration time.Duration
 	// pod maximum backoff duration.
+	//
+	// pod 的最大退避时长.
 	podMaxBackoffDuration time.Duration
 
 	lock sync.RWMutex
@@ -127,29 +141,48 @@ type PriorityQueue struct {
 
 	// activeQ is heap structure that scheduler actively looks at to find pods to
 	// schedule. Head of heap is the highest priority pod.
+	//
+	// activeQ 是一个 heap（堆）结构, 它是调度器主动查看以查找要调度的 pod. 堆头是优先级最高的 pod.
 	activeQ *heap.Heap
 	// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
 	// are popped from this heap before the scheduler looks at activeQ
+	//
+	// podBackoffQ 是按 backoff（退避）到期时间排序的堆. 在调度器查看 activeQ 前, 已从此堆中弹出 backoff（退避）
+	// 完成的 pod.
 	podBackoffQ *heap.Heap
 	// unschedulableQ holds pods that have been tried and determined unschedulable.
+	//
+	// unschedulableQ 包含已尝试并确定为不可调度的 pods.
 	unschedulableQ *UnschedulablePodsMap
 	// schedulingCycle represents sequence number of scheduling cycle and is incremented
 	// when a pod is popped.
+	//
+	// schedulingCycle 表示调度周期的序列号, 并在弹出 pod 时递增.
 	schedulingCycle int64
 	// moveRequestCycle caches the sequence number of scheduling cycle when we
 	// received a move request. Unscheduable pods in and before this scheduling
 	// cycle will be put back to activeQueue if we were trying to schedule them
 	// when we received move request.
+	//
+	// 当我们接受到一个 move 请求时, moveRequestCycle 会缓存调度周期的序列号. 如果我们在接收到 move 请求
+	// 时尝试调度它们, 则在此调度周期中和此调度周期之前的不可调度的 pod 将移回到 activeQ.
 	moveRequestCycle int64
 
 	// closed indicates that the queue is closed.
 	// It is mainly used to let Pop() exit its control loop while waiting for an item.
+	//
+	// closed 指示该队列是否已关闭.
+	// 它主要用于让 Pop() 在等待 item 时退出其控制循环.
 	closed bool
 }
 
+// 优先级队列的配置参数
 type priorityQueueOptions struct {
 	clock                     util.Clock
+	// 不可调度的 Pods 的初始 backoff（退避）秒数, 没有指定, 则默认为 1s
 	podInitialBackoffDuration time.Duration
+	// 不可调度的 Pods 的最大 backoff（退避）秒数. 必须大于或等于 podInitialBackoffSeconds.
+	// 没有指定, 则默认 10s.
 	podMaxBackoffDuration     time.Duration
 	podNominator              framework.PodNominator
 }
@@ -202,10 +235,13 @@ func newQueuedPodInfoNoTimestamp(pod *v1.Pod) *framework.QueuedPodInfo {
 }
 
 // NewPriorityQueue creates a PriorityQueue object.
+//
+// NewPriorityQueue 创建一个 PriorityQueue 对象.
 func NewPriorityQueue(
 	lessFn framework.LessFunc,
 	opts ...Option,
 ) *PriorityQueue {
+	// 获取默认的优先级队列配置参数
 	options := defaultPriorityQueueOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -221,6 +257,7 @@ func NewPriorityQueue(
 		options.podNominator = NewPodNominator()
 	}
 
+	// 实例化一个优先级队列
 	pq := &PriorityQueue{
 		PodNominator:              options.podNominator,
 		clock:                     options.clock,
@@ -238,7 +275,10 @@ func NewPriorityQueue(
 }
 
 // Run starts the goroutine to pump from podBackoffQ to activeQ
+//
+// Run 启动 goroutine 来将 pod 从 podBackoffQ 队列弹出到 activeQ 队列中.
 func (p *PriorityQueue) Run() {
+	// 每秒执行一次 p.flushBackoffQCompleted 函数
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
 	go wait.Until(p.flushUnschedulableQLeftover, 30*time.Second, p.stop)
 }
@@ -479,6 +519,8 @@ func (p *PriorityQueue) Delete(pod *v1.Pod) error {
 
 // AssignedPodAdded is called when a bound pod is added. Creation of this pod
 // may make pending pods with matching affinity terms schedulable.
+//
+// AssignedPodAdded 当添加绑定的 pod 时将调用该函数.
 func (p *PriorityQueue) AssignedPodAdded(pod *v1.Pod) {
 	p.lock.Lock()
 	p.movePodsToActiveOrBackoffQueue(p.getUnschedulablePodsWithMatchingAffinityTerm(pod), AssignedPodAdd)
@@ -534,6 +576,9 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 // getUnschedulablePodsWithMatchingAffinityTerm returns unschedulable pods which have
 // any affinity term that matches "pod".
 // NOTE: this function assumes lock has been acquired in caller.
+//
+// getUnschedulablePodsWithMatchingAffinityTerm 返回具有与 "pod" 相匹配的任何亲和性（affinity）的无法调度的 pods.
+// 注意: 该函数假定在调用时已经获取了锁.
 func (p *PriorityQueue) getUnschedulablePodsWithMatchingAffinityTerm(pod *v1.Pod) []*framework.QueuedPodInfo {
 	var podsToMove []*framework.QueuedPodInfo
 	for _, pInfo := range p.unschedulableQ.podInfoMap {
@@ -662,6 +707,8 @@ func updatePod(oldPodInfo interface{}, newPod *v1.Pod) *framework.QueuedPodInfo 
 
 // UnschedulablePodsMap holds pods that cannot be scheduled. This data structure
 // is used to implement unschedulableQ.
+//
+// UnschedulablePodsMap 存储无法调度的 pods. 该数据结构用于实现 unschedulableQ.
 type UnschedulablePodsMap struct {
 	// podInfoMap is a map key by a pod's full-name and the value is a pointer to the QueuedPodInfo.
 	podInfoMap map[string]*framework.QueuedPodInfo
@@ -720,13 +767,21 @@ func newUnschedulablePodsMap(metricRecorder metrics.MetricRecorder) *Unschedulab
 // It exists because nominatedNodeName of pod objects stored in the structure
 // may be different than what scheduler has here. We should be able to find pods
 // by their UID and update/delete them.
+//
+// nominatedPodMap 是一个存储被提名要在节点上运行的 pod 的结构. 之所以存在该结构, 是因为存储在结构中的
+// pod 对象的 nominatedNodeName 可能与此处的调度器不同. 我们应该能够通过其 UID 查找 pods 并进行 update/delete.
 type nominatedPodMap struct {
 	// nominatedPods is a map keyed by a node name and the value is a list of
 	// pods which are nominated to run on the node. These are pods which can be in
 	// the activeQ or unschedulableQ.
+	//
+	// nominatedPods 是一个由节点名作为键的映射, 值是被提名要在该节点上运行的 pod 列表. 这些 pod 可能是位于
+	// activeQ 或 unschedulableQ 中.
 	nominatedPods map[string][]*v1.Pod
 	// nominatedPodToNode is map keyed by a Pod UID to the node name where it is
 	// nominated.
+	//
+	// nominatedPodToNode 是以 Pod UID 作为 key 来映射到指定它的节点名称.
 	nominatedPodToNode map[ktypes.UID]string
 
 	sync.RWMutex
@@ -796,6 +851,8 @@ func (npm *nominatedPodMap) UpdateNominatedPod(oldPod, newPod *v1.Pod) {
 }
 
 // NewPodNominator creates a nominatedPodMap as a backing of framework.PodNominator.
+//
+// NewPodNominator 创建一个 nominatedPodMap 作为 framework.PodNominator 的后备.
 func NewPodNominator() framework.PodNominator {
 	return &nominatedPodMap{
 		nominatedPods:      make(map[string][]*v1.Pod),

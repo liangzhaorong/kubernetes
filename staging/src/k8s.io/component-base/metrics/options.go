@@ -31,6 +31,8 @@ type Options struct {
 }
 
 // NewOptions returns default metrics options
+//
+// NewOptions 返回默认的指标监控相关选项 Options 对象
 func NewOptions() *Options {
 	return &Options{}
 }

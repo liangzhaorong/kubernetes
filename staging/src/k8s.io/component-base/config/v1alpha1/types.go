@@ -57,11 +57,17 @@ type LeaderElectionConfiguration struct {
 }
 
 // DebuggingConfiguration holds configuration for Debugging related features.
+//
+// DebuggingConfiguration 保存用于调试相关功能的配置.
 type DebuggingConfiguration struct {
 	// enableProfiling enables profiling via web interface host:port/debug/pprof/
+	//
+	// enableProfiling 通过 web 接口 host:port/debug/pprof/ 来启用 profiling.
 	EnableProfiling *bool `json:"enableProfiling,omitempty"`
 	// enableContentionProfiling enables lock contention profiling, if
 	// enableProfiling is true.
+	//
+	// EnableContentionProfiling 如果 EnableProfiling 为 true, 则 enableContentionProfiling 启用锁竞争 profiling.
 	EnableContentionProfiling *bool `json:"enableContentionProfiling,omitempty"`
 }
 

@@ -24,6 +24,7 @@ import (
 )
 
 var (
+	// 在调度 Pod 的算法中并发调度的数量. 必须大于 0, 默认为 16.
 	parallelism = 16
 )
 

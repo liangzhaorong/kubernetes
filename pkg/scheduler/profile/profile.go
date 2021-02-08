@@ -31,6 +31,7 @@ import (
 )
 
 // RecorderFactory builds an EventRecorder for a given scheduler name.
+// RecorderFactory 为指定的调度器名称构建一个 EventRecorder.
 type RecorderFactory func(string) events.EventRecorder
 
 // newProfile builds a Profile for the given configuration.
@@ -49,6 +50,8 @@ func newProfile(cfg config.KubeSchedulerProfile, r frameworkruntime.Registry, re
 type Map map[string]framework.Framework
 
 // NewMap builds the frameworks given by the configuration, indexed by name.
+//
+// NewMap 构建由配置指定的 framework, 并按名称进行索引.
 func NewMap(cfgs []config.KubeSchedulerProfile, r frameworkruntime.Registry, recorderFact RecorderFactory,
 	opts ...frameworkruntime.Option) (Map, error) {
 	m := make(Map)

@@ -40,17 +40,26 @@ var generation int64
 // QueuedPodInfo is a Pod wrapper with additional information related to
 // the pod's status in the scheduling queue, such as the timestamp when
 // it's added to the queue.
+//
+// QueuedPodInfo 是 Pod 的包装器, 其中包含与调度队列中 Pod 的状态有关的其他信息, 如添加到队列中的时间戳.
 type QueuedPodInfo struct {
 	Pod *v1.Pod
 	// The time pod added to the scheduling queue.
+	//
+	// 该 pod 添加到调度队列中的时间.
 	Timestamp time.Time
 	// Number of schedule attempts before successfully scheduled.
 	// It's used to record the # attempts metric.
+	//
+	// 成功调度前的调度尝试次数.
 	Attempts int
 	// The time when the pod is added to the queue for the first time. The pod may be added
 	// back to the queue multiple times before it's successfully scheduled.
 	// It shouldn't be updated once initialized. It's used to record the e2e scheduling
 	// latency for a pod.
+	//
+	// pod 首次添加到调度队列中的时间. 在成功调度 pod 之前, 可能会将 pod 多次添加回调度队列中.
+	// 初始化后不应该对其进行更新. 它用于记录 pod 的 e2e 调度延迟.
 	InitialAttemptTimestamp time.Time
 }
 
@@ -200,6 +209,7 @@ type NodeInfo struct {
 	PodsWithRequiredAntiAffinity []*PodInfo
 
 	// Ports allocated on the node.
+	// 该节点上已经分配了的端口
 	UsedPorts HostPortInfo
 
 	// Total requested resources of all pods on this node. This includes assumed
@@ -536,6 +546,8 @@ func removeFromSlice(s []*PodInfo, k string) []*PodInfo {
 }
 
 // RemovePod subtracts pod information from this NodeInfo.
+//
+// RemovePod 从该 NodeInfo 中移除 pod 的信息.
 func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 	k, err := GetPodKey(pod)
 	if err != nil {

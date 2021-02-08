@@ -29,6 +29,8 @@ import (
 
 // DeprecatedOptions contains deprecated options and their flags.
 // TODO remove these fields once the deprecated flags are removed.
+//
+// DeprecatedOptions 旧的调度策略相关的参数, 已标记为过期并会在将来的版本中去掉.
 type DeprecatedOptions struct {
 	// The fields below here are placeholders for flags that can't be directly
 	// mapped into componentconfig.KubeSchedulerConfiguration.
@@ -42,6 +44,7 @@ type DeprecatedOptions struct {
 }
 
 // AddFlags adds flags for the deprecated options.
+// AddFlags 添加旧的调度策略相关参数, 已标记为过期并在将来的版本中移除
 func (o *DeprecatedOptions) AddFlags(fs *pflag.FlagSet, cfg *kubeschedulerconfig.KubeSchedulerConfiguration) {
 	if o == nil {
 		return

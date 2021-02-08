@@ -30,15 +30,23 @@ import (
 
 // CombinedInsecureServingOptions sets up to two insecure listeners for healthz and metrics. The flags
 // override the ComponentConfig and DeprecatedInsecureServingOptions values for both.
+//
+// CombinedInsecureServingOptions 最多可为 healthz(健康检查) 和 metrics(指标监控) 设置两个 HTTP 监听器 listeners.
+// 这些 flags 标志将覆盖 ComponentConfig 和 DeprecatedInsecureServingOptions 的值.
 type CombinedInsecureServingOptions struct {
+	// 健康检查
 	Healthz *apiserveroptions.DeprecatedInsecureServingOptionsWithLoopback
+	// 指标监控
 	Metrics *apiserveroptions.DeprecatedInsecureServingOptionsWithLoopback
 
+	// --port 参数配置, 推荐使用 --secure-port 代替
 	BindPort    int    // overrides the structs above on ApplyTo, ignored on ApplyToFromLoadedConfig
+	// --address 参数配置, 推荐使用 --secure-address 代替
 	BindAddress string // overrides the structs above on ApplyTo, ignored on ApplyToFromLoadedConfig
 }
 
 // AddFlags adds flags for the insecure serving options.
+// AddFlags 添加 HTTP 服务相关参数
 func (o *CombinedInsecureServingOptions) AddFlags(fs *pflag.FlagSet) {
 	if o == nil {
 		return

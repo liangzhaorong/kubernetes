@@ -22,6 +22,8 @@ import (
 )
 
 // PodPriority returns priority of the given pod.
+//
+// PodPriority 返回指定 pod 的优先级. 没有配置则返回 0.
 func PodPriority(pod *v1.Pod) int32 {
 	if pod.Spec.Priority != nil {
 		return *pod.Spec.Priority

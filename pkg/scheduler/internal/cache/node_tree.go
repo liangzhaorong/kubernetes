@@ -29,6 +29,11 @@ import (
 // keys to "NodeTree.tree" and values of "NodeTree.tree" are arrays of node names.
 // NodeTree is NOT thread-safe, any concurrent updates/reads from it must be synchronized by the caller.
 // It is used only by schedulerCache, and should stay as such.
+//
+// nodeTree 是树状数据结构, 在每个 zone 中保存节点名称. zone 名称是 "NodeTree.tree" 的键, "NodeTree.tree" 的值是
+// 节点名称的数组.
+// nodeTree 不是线程安全的, 调用者必须同步所有并发的更新/读取.
+// 它仅由 schedulerCache 使用.
 type nodeTree struct {
 	tree     map[string][]string // a map from zone (region-zone) to an array of nodes in the zone.
 	zones    []string            // a list of all the zones in the tree (keys)

@@ -39,23 +39,37 @@ import (
 // WARNING: never assume that every authenticated incoming request already does authorization.
 //          The aggregator in the kube API server does this today, but this behaviour is not
 //          guaranteed in the future.
+//
+// 授权相关参数
 type DelegatingAuthorizationOptions struct {
 	// RemoteKubeConfigFile is the file to use to connect to a "normal" kube API server which hosts the
 	// SubjectAccessReview.authorization.k8s.io endpoint for checking tokens.
+	//
+	// --authorization-kubeconfig: 用于指定 kube-scheduler 的授权 kubeconfig 配置文件, 该文件中定义了访问
+	// Kubernetes API Server 的配置信息.
 	RemoteKubeConfigFile string
 	// RemoteKubeConfigFileOptional is specifying whether not specifying the kubeconfig or
 	// a missing in-cluster config will be fatal.
 	RemoteKubeConfigFileOptional bool
 
 	// AllowCacheTTL is the length of time that a successful authorization response will be cached
+	//
+	// --authorization-webhook-cache-authorized-ttl: 用于设置从 Webhook 授权服务中缓存已授权响应的缓存时间 (默认值为 10 秒)
 	AllowCacheTTL time.Duration
 
 	// DenyCacheTTL is the length of time that an unsuccessful authorization response will be cached.
 	// You generally want more responsive, "deny, try again" flows.
+	//
+	// --authorization-webhook-cache-unauthorized-ttl: 用于设置从 Webhook 授权服务中缓存未授权响应的缓存时间 (默认值为 10秒)
 	DenyCacheTTL time.Duration
 
 	// AlwaysAllowPaths are HTTP paths which are excluded from authorization. They can be plain
 	// paths or end in * in which case prefix-match is applied. A leading / is optional.
+	//
+	// AlwaysAllowPaths 指定从授权中排除的路径. 它们可能是纯路径 或者以 * 结尾, 在这种情况下, 将应用前缀匹配.
+	// 此外, 前导 / 是可选的.
+	//
+	// --authorization-always-allow-paths: 用于设置不受授权权限影响的 HTTP 路径 (默认值为 /healthz)
 	AlwaysAllowPaths []string
 
 	// AlwaysAllowGroups are groups which are allowed to take any actions.  In kube, this is system:masters.
@@ -71,6 +85,7 @@ type DelegatingAuthorizationOptions struct {
 	WebhookRetryBackoff *wait.Backoff
 }
 
+// 授权相关参数
 func NewDelegatingAuthorizationOptions() *DelegatingAuthorizationOptions {
 	return &DelegatingAuthorizationOptions{
 		// very low for responsiveness, but high enough to handle storms
@@ -113,6 +128,7 @@ func (s *DelegatingAuthorizationOptions) Validate() []error {
 	return allErrors
 }
 
+// AddFlags 添加授权相关参数
 func (s *DelegatingAuthorizationOptions) AddFlags(fs *pflag.FlagSet) {
 	if s == nil {
 		return
@@ -122,18 +138,23 @@ func (s *DelegatingAuthorizationOptions) AddFlags(fs *pflag.FlagSet) {
 	if s.RemoteKubeConfigFileOptional {
 		optionalKubeConfigSentence = " This is optional. If empty, all requests not skipped by authorization are forbidden."
 	}
+	// --authorization-kubeconfig: 用于指定 kube-scheduler 的授权 kubeconfig 配置文件, 该文件中定义了访问
+	// Kubernetes API Server 的配置信息.
 	fs.StringVar(&s.RemoteKubeConfigFile, "authorization-kubeconfig", s.RemoteKubeConfigFile,
 		"kubeconfig file pointing at the 'core' kubernetes server with enough rights to create "+
 			"subjectaccessreviews.authorization.k8s.io."+optionalKubeConfigSentence)
 
+	// --authorization-webhook-cache-authorized-ttl: 用于设置从 Webhook 授权服务中缓存已授权响应的缓存时间 (默认值为 10 秒)
 	fs.DurationVar(&s.AllowCacheTTL, "authorization-webhook-cache-authorized-ttl",
 		s.AllowCacheTTL,
 		"The duration to cache 'authorized' responses from the webhook authorizer.")
 
+	// --authorization-webhook-cache-unauthorized-ttl: 用于设置从 Webhook 授权服务中缓存未授权响应的缓存时间 (默认值为 10秒)
 	fs.DurationVar(&s.DenyCacheTTL,
 		"authorization-webhook-cache-unauthorized-ttl", s.DenyCacheTTL,
 		"The duration to cache 'unauthorized' responses from the webhook authorizer.")
 
+	// --authorization-always-allow-paths: 用于设置不受授权权限影响的 HTTP 路径 (默认值为 /healthz)
 	fs.StringSliceVar(&s.AlwaysAllowPaths, "authorization-always-allow-paths", s.AlwaysAllowPaths,
 		"A list of HTTP paths to skip during authorization, i.e. these are authorized without "+
 			"contacting the 'core' kubernetes server.")

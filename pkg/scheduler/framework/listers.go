@@ -17,6 +17,8 @@ limitations under the License.
 package framework
 
 // NodeInfoLister interface represents anything that can list/get NodeInfo objects from node name.
+//
+// NodeInfoLister 接口表示可从 node name 中 list/get NodeInfo 对象的任意内容.
 type NodeInfoLister interface {
 	// Returns the list of NodeInfos.
 	List() ([]*NodeInfo, error)
@@ -29,6 +31,7 @@ type NodeInfoLister interface {
 }
 
 // SharedLister groups scheduler-specific listers.
+// SharedLister 是调度器特定的 listers 组.
 type SharedLister interface {
 	NodeInfos() NodeInfoLister
 }
