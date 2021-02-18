@@ -44,7 +44,7 @@ type StateKey string
 // CycleState does not provide any data protection, as all plugins are assumed to be
 // trusted.
 //
-// CycleState 为插件提供了一种存储和检索任意数据的机制.
+// CycleState 为插件 plugins 提供了一种存储和检索任意数据的机制.
 // 一个插件存储的 StateData 可以被另一个插件读取，更改或删除.
 // CycleState 不提供任何数据保护, 因为假定所有的插件都是可信的.
 type CycleState struct {

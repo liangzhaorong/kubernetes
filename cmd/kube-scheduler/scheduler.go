@@ -31,6 +31,7 @@ import (
 )
 
 func main() {
+	// 使每次启动产生的随机数都与上一次运行时不一样
 	rand.Seed(time.Now().UnixNano())
 
 	command := app.NewSchedulerCommand()

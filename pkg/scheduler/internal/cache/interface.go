@@ -55,6 +55,38 @@ import (
 // - If a pod wasn't added, it wouldn't be removed or updated.
 // - Both "Expired" and "Deleted" are valid end states. In case of some problems, e.g. network issue,
 //   a pod might have changed its state (e.g. added and deleted) without delivering notification to the cache.
+//
+//
+// 译文:
+// Cache 收集 Pods 的信息并提供节点级别的聚合信息.
+// 它旨在让 genericScheduler 进行有效的查找.
+// Cache 的操作以 Pod 为中心. 它基于 Pod Event 进行增量更新. 通过网络发送 Pod events. 我们不能保证所有的 events 都能
+// 安全传达到目的地: 我们使用 Reflector 机制来 list 和 watch 远端 kube-apiserver 的 Pod events.
+// Reflector 可能会很慢并且需要重新排列, 这将会导致 events 丢失.
+//
+// 调度器的缓存中 Pod 事件的状态机:
+//
+//
+//   +-------------------------------------------+  +----+
+//   |                            Add            |  |    |
+//   |                                           |  |    | Update
+//   +      Assume                Add            v  v    |
+//Initial +--------> Assumed +------------+---> Added <--+
+//   ^                +   +               |       +
+//   |                |   |               |       |
+//   |                |   |           Add |       | Remove
+//   |                |   |               |       |
+//   |                |   |               +       |
+//   +----------------+   +-----------> Expired   +----> Deleted
+//         Forget             Expire
+//
+//
+// 注意 assumedPod 可能会过期, 因为如果在一段时间内没有收到 Add 事件的通知, 则可能是出现了一些问题, 因此我们不应
+// 再将 Pod 保存在缓存中.
+//
+// 注意 "Initial", "Expired", 以及 "Deleted" 状态的 Pods 实际上不在缓存中.
+// 基于现有的使用情况, 我们进行如下假设:
+// - 不会两次 assumed 一个 Pod
 type Cache interface {
 	// NodeCount returns the number of nodes in the cache.
 	// DO NOT use outside of tests.

@@ -53,6 +53,7 @@ const (
 	// SchedulerError is the reason recorded for events when an error occurs during scheduling a pod.
 	SchedulerError = "SchedulerError"
 	// Percentage of plugin metrics to be sampled.
+	// 要采样的插件指标的百分比
 	pluginMetricsSamplePercent = 10
 )
 
@@ -72,6 +73,9 @@ type Scheduler struct {
 	// is available. We don't use a channel for this, because scheduling
 	// a pod may take some amount of time and we don't want pods to get
 	// stale while they sit in a channel.
+	//
+	// NextPod 是一个阻塞函数, 直到能从 activeQ 队列中获取到下一个 Pod 为止.
+	// 该函数实际调用优先级队列的 Pop 函数.
 	NextPod func() *framework.QueuedPodInfo
 
 	// Error is called if there is an error. It is passed the pod in
@@ -82,11 +86,13 @@ type Scheduler struct {
 	StopEverything <-chan struct{}
 
 	// SchedulingQueue holds pods to be scheduled
-	// 调度队列, 存储了待调度 Pod 资源对象. 调度队列的实现有两种方式, 分别是 FIFO(先进先出队列) 和
+	//
+	// 调度队列, 存储了待调度的 Pod 资源对象. 调度队列的实现有两种方式, 分别是 FIFO(先进先出队列) 和
 	// PriorityQueue(优先级队列). 其中优先级队列根据 Pod 资源对象的优先级进行排序, 优先级越高的排得越前.
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.
+	// Profiles 存储所有的调度配置文件
 	Profiles profile.Map
 
 	client clientset.Interface
@@ -108,6 +114,7 @@ type schedulerOptions struct {
 	// Contains out-of-tree plugins to be merged with the in-tree registry.
 	// 包含要与 in-tree 注册表 registry 合并的树外插件.
 	frameworkOutOfTreeRegistry frameworkruntime.Registry
+	// 调度器的配置
 	profiles                   []schedulerapi.KubeSchedulerProfile
 	// 扩展调度器列表
 	extenders                  []schedulerapi.Extender
@@ -136,6 +143,8 @@ func WithParallelism(threads int32) Option {
 }
 
 // WithAlgorithmSource sets schedulerAlgorithmSource for Scheduler, the default is a source with DefaultProvider.
+//
+// WithAlgorithmSource 配置调度器算法源, 默认使用 DefaultProvider
 func WithAlgorithmSource(source schedulerapi.SchedulerAlgorithmSource) Option {
 	return func(o *schedulerOptions) {
 		o.schedulerAlgorithmSource = source
@@ -181,10 +190,12 @@ func WithExtenders(e ...schedulerapi.Extender) Option {
 
 // FrameworkCapturer is used for registering a notify function in building framework.
 //
-// FrameworkCapturer 用于在构建框架（framework）中注册的通知功能.
+// FrameworkCapturer 用于在构建框架（framework）中注册的通知函数.
 type FrameworkCapturer func(schedulerapi.KubeSchedulerProfile)
 
 // WithBuildFrameworkCapturer sets a notify function for getting buildFramework details.
+//
+// WithBuildFrameworkCapturer 设置用于获取 buildFramework 详细信息的通知函数
 func WithBuildFrameworkCapturer(fc FrameworkCapturer) Option {
 	return func(o *schedulerOptions) {
 		o.frameworkCapturer = fc
@@ -347,7 +358,7 @@ func initPolicyFromConfigMap(client clientset.Interface, policyRef *schedulerapi
 //
 // Run 开始监控和调度. 它开始调度并阻塞, 直到 ctx 终止.
 func (sched *Scheduler) Run(ctx context.Context) {
-	// 启动调度队列
+	// 启动调度队列, 该函数会启动两个 goroutine, 分别定时刷新 podBackoffQ 队列和 unschedulableQ 队列
 	sched.SchedulingQueue.Run()
 	// sched.scheduleOne 是 kube-scheduler 组件的调度主逻辑, 它通过 wait.UntilWithContext 定时器执行.
 	// 内部会定时调用 sched.scheduleOne 函数.
@@ -473,14 +484,16 @@ func (sched *Scheduler) finishBinding(fwk framework.Framework, assumed *v1.Pod, 
 
 // scheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting.
 func (sched *Scheduler) scheduleOne(ctx context.Context) {
-	// 从优先级队列中获取一个优先级最高的待调度的 Pod 资源对象, 该过程是阻塞模式的, 当优先级队列中
+	// 从优先级队列中获取一个优先级最高的待调度的 Pod 资源对象, 该过程是阻塞的, 当优先级队列中
 	// 不存在任何 Pod 资源对象时, sched.NextPod 函数处于等待状态.
 	podInfo := sched.NextPod()
 	// pod could be nil when schedulerQueue is closed
+	// 当调度队列已经关闭时, pod 将会 nil
 	if podInfo == nil || podInfo.Pod == nil {
 		return
 	}
 	pod := podInfo.Pod
+	// 返回该 Pod 的 .spec.SchedulerName 对应的调度框架（Scheduling Framework）, 默认为 default-scheduler
 	fwk, err := sched.frameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only accept for scheduling the pods
@@ -488,6 +501,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		klog.Error(err)
 		return
 	}
+	// 略过特殊的 Pod, 对其不进行调度, 如已被删除的 Pod
 	if sched.skipPodSchedule(fwk, pod) {
 		return
 	}
@@ -553,6 +567,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	assumedPodInfo := podInfo.DeepCopy()
 	assumedPod := assumedPodInfo.Pod
 	// assume modifies `assumedPod` by setting NodeName=scheduleResult.SuggestedHost
+	// assume 通过设置 NodeName 为 scheduleResult.SuggestedHost 的值来置使该 Pod 成为 `assumedPod`, 即置为 assumed 状态.
 	err = sched.assume(assumedPod, scheduleResult.SuggestedHost)
 	if err != nil {
 		metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))
@@ -642,6 +657,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		if err != nil {
 			metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))
 			// trigger un-reserve plugins to clean up state associated with the reserved Pod
+			// 绑定失败, 则触发调用 Unreserve 扩展点的 plugins, 对 Pod 进行资源回退
 			fwk.RunReservePluginsUnreserve(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
 			if err := sched.SchedulerCache.ForgetPod(assumedPod); err != nil {
 				klog.Errorf("scheduler cache ForgetPod failed: %v", err)
@@ -680,6 +696,8 @@ func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error
 }
 
 // skipPodSchedule returns true if we could skip scheduling the pod for specified cases.
+//
+// skipPodSchedule 对于特殊的 Pod 将不进行调度, 如该 Pod 已被删除
 func (sched *Scheduler) skipPodSchedule(fwk framework.Framework, pod *v1.Pod) bool {
 	// Case 1: pod is being deleted.
 	if pod.DeletionTimestamp != nil {

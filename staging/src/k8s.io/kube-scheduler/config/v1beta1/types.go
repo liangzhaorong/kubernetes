@@ -75,6 +75,10 @@ type KubeSchedulerConfiguration struct {
 	// then scheduler stops finding further feasible nodes once it finds 150 feasible ones.
 	// When the value is 0, default percentage (5%--50% based on the size of the cluster) of the
 	// nodes will be scored.
+	//
+	// PercentageOfNodesToScore 是用于指定一个百分比值, 一旦发现可用于运行 Pod 的节点与所有节点的百分比值达到该指定的
+	// 百分比值, 那么调度器将停止搜索集群中更多可运行该 Pod 的节点. 这有助于提高调度器的性能.
+	// 注意: 调度器会始终尝试至少查找 "minFeasibleNodesToFind" 个可行节点, 而不管该标志设置的百分比值是多少.
 	PercentageOfNodesToScore *int32 `json:"percentageOfNodesToScore,omitempty"`
 
 	// PodInitialBackoffSeconds is the initial backoff for unschedulable pods.

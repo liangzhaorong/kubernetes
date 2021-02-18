@@ -479,6 +479,8 @@ type Framework interface {
 
 	// RunReservePluginsUnreserve runs the Unreserve method of the set of
 	// configured Reserve plugins.
+	//
+	// 在 Permit 到 Bind 这几个阶段只要报错就执行该函数, 调用 Unreserve 扩展点的 plugins, 以便去做资源回退.
 	RunReservePluginsUnreserve(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string)
 
 	// RunPermitPlugins runs the set of configured Permit plugins. If any of these

@@ -101,7 +101,7 @@ type Configurator struct {
 func (c *Configurator) create() (*Scheduler, error) {
 	var extenders []framework.Extender
 	var ignoredExtendedResources []string
-	// 扩展调度器
+	// 配置了外挂的扩展调度器
 	if len(c.extenders) != 0 {
 		var ignorableExtenders []framework.Extender
 		for ii := range c.extenders {
@@ -163,7 +163,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	// Profiles are required to have equivalent queue sort plugins.
 	// 获取在调度队列中对 pod 进行优先级排序的函数
 	lessFn := profiles[c.profiles[0].SchedulerName].QueueSortFunc()
-	//
+	// 实例化一个优先级队列作为新的调度队列 SchedulingQueue
 	podQueue := internalqueue.NewSchedulingQueue(
 		lessFn,
 		internalqueue.WithPodInitialBackoffDuration(time.Duration(c.podInitialBackoffSeconds)*time.Second),

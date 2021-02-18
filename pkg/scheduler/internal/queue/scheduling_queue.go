@@ -142,17 +142,27 @@ type PriorityQueue struct {
 	// activeQ is heap structure that scheduler actively looks at to find pods to
 	// schedule. Head of heap is the highest priority pod.
 	//
-	// activeQ 是一个 heap（堆）结构, 它是调度器主动查看以查找要调度的 pod. 堆头是优先级最高的 pod.
+	// activeQ 是一个 heap（堆）结构, 调度器会从该 activeQ 队列中 Pop 一个 Pod 出来, 然后经过调度流水线去调度.
+	// 堆头是优先级最高的 Pod.
 	activeQ *heap.Heap
 	// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
 	// are popped from this heap before the scheduler looks at activeQ
 	//
 	// podBackoffQ 是按 backoff（退避）到期时间排序的堆. 在调度器查看 activeQ 前, 已从此堆中弹出 backoff（退避）
 	// 完成的 pod.
+	//
+	// 什么情况下 Pod 会放到 podBackoffQ 队列中呢?
+	// 如果在一个调度周期里面, Cache 发生了变化, 会把 Pod 放到 podBackoffQ 队列中.
+	//
+	// 在 podBackoffQ 里面等待的时间会比在 unschedulableQ 里面时间更短, podBackoffQ 有一个降级策略, 是 2 的指数次幂
+	// 降级. 假设重试第一次为 1s, 那第二次、第三次、第四次分别为 2s、4s、8s, 最大为 10s.
 	podBackoffQ *heap.Heap
 	// unschedulableQ holds pods that have been tried and determined unschedulable.
 	//
-	// unschedulableQ 包含已尝试并确定为不可调度的 pods.
+	// unschedulableQ 存储调度失败的 pods, 即 Bind 失败.
+	//
+	// unschedulableQ 队列的机制: 如果这个 Pod 一分钟没有调度过, 到一分钟时, 它会把这个 Pod 重新丢回 activeQ. 它的轮询
+	// 周期是 30s.
 	unschedulableQ *UnschedulablePodsMap
 	// schedulingCycle represents sequence number of scheduling cycle and is incremented
 	// when a pod is popped.
@@ -276,7 +286,7 @@ func NewPriorityQueue(
 
 // Run starts the goroutine to pump from podBackoffQ to activeQ
 //
-// Run 启动 goroutine 来将 pod 从 podBackoffQ 队列弹出到 activeQ 队列中.
+// Run 启动一个 goroutine 来将 pod 从 podBackoffQ 队列弹出到 activeQ 队列中.
 func (p *PriorityQueue) Run() {
 	// 每秒执行一次 p.flushBackoffQCompleted 函数
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
@@ -394,6 +404,8 @@ func (p *PriorityQueue) flushBackoffQCompleted() {
 
 // flushUnschedulableQLeftover moves pod which stays in unschedulableQ longer than the unschedulableQTimeInterval
 // to activeQ.
+//
+// 如果这个 Pod 一分钟没有调度过, 到一分钟时, 它会把这个 Pod 重新丢回 activeQ. 该函数的调用周期是 30s.
 func (p *PriorityQueue) flushUnschedulableQLeftover() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -415,9 +427,13 @@ func (p *PriorityQueue) flushUnschedulableQLeftover() {
 // Pop removes the head of the active queue and returns it. It blocks if the
 // activeQ is empty and waits until a new item is added to the queue. It
 // increments scheduling cycle when a pod is popped.
+//
+// Pop 函数将删除 activeQ 队列的头元素并返回它. 如果 activeQ 为空, 则 Pop 将一直阻塞.
+// 直到有新的元素添加到 activeQ 中. 当弹出一个 Pod 时, 调度周期将会加 1.
 func (p *PriorityQueue) Pop() (*framework.QueuedPodInfo, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	// 若 activeQ 为空, 则阻塞
 	for p.activeQ.Len() == 0 {
 		// When the queue is empty, invocation of Pop() is blocked until new item is enqueued.
 		// When Close() is called, the p.closed is set and the condition is broadcast,
@@ -432,6 +448,7 @@ func (p *PriorityQueue) Pop() (*framework.QueuedPodInfo, error) {
 		return nil, err
 	}
 	pInfo := obj.(*framework.QueuedPodInfo)
+	// Pod 的调度次数加 1
 	pInfo.Attempts++
 	p.schedulingCycle++
 	return pInfo, err
@@ -862,6 +879,7 @@ func NewPodNominator() framework.PodNominator {
 
 // MakeNextPodFunc returns a function to retrieve the next pod from a given
 // scheduling queue
+// MakeNextPodFunc 返回一个函数, 该函数用于从调度队列中获取下一个 Pod
 func MakeNextPodFunc(queue SchedulingQueue) func() *framework.QueuedPodInfo {
 	return func() *framework.QueuedPodInfo {
 		podInfo, err := queue.Pop()

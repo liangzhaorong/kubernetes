@@ -34,8 +34,12 @@ import (
 // 节点名称的数组.
 // nodeTree 不是线程安全的, 调用者必须同步所有并发的更新/读取.
 // 它仅由 schedulerCache 使用.
+//
+// nodeTree 主要负责节点的打散, 用于让 Pod 均衡分配在多个 zone 中的 node 节点上.
 type nodeTree struct {
+	// 存储 zone 和 zone 下面的 nodes 信息
 	tree     map[string][]string // a map from zone (region-zone) to an array of nodes in the zone.
+	// 存储 zones
 	zones    []string            // a list of all the zones in the tree (keys)
 	numNodes int
 }

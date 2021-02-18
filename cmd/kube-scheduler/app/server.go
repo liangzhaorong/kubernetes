@@ -69,6 +69,7 @@ func NewSchedulerCommand(registryOptions ...Option) *cobra.Command {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
 
+	// 构建 kube-scheduler 根命令
 	cmd := &cobra.Command{
 		Use: "kube-scheduler",
 		Long: `The Kubernetes scheduler is a control plane process which assigns
@@ -174,6 +175,8 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 			return !ok
 		default:
 			// channel is open, we are waiting for a leader
+			//
+			// waitingForLeader 这个 channel 为打开状态, 则表示我们正在等待 Leader
 			return false
 		}
 	}
@@ -236,7 +239,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 			return fmt.Errorf("couldn't create leader elector: %v", err)
 		}
 
-		// 通过该函数参数领导者选举, 该函数会一直尝试使节点成为领导者
+		// 通过该函数参与领导者选举, 该函数会一直尝试使节点成为领导者
 		leaderElector.Run(ctx)
 
 		return fmt.Errorf("lost lease")
@@ -355,7 +358,8 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	recorderFactory := getRecorderFactory(&cc)
 	completedProfiles := make([]kubeschedulerconfig.KubeSchedulerProfile, 0)
 	// Create the scheduler.
-	// 创建一个调度器对象 Scheduler
+	//
+	// 创建一个调度器对象 Scheduler 实例
 	sched, err := scheduler.New(cc.Client,
 		cc.InformerFactory,
 		recorderFactory,

@@ -100,11 +100,13 @@ func NewOptions() (*Options, error) {
 		return nil, err
 	}
 
+	// 分割 host 和 port
 	hhost, hport, err := splitHostIntPort(cfg.HealthzBindAddress)
 	if err != nil {
 		return nil, err
 	}
 
+	// 构建 Options 结构体实例
 	o := &Options{
 		ComponentConfig: *cfg,
 		SecureServing:   apiserveroptions.NewSecureServingOptions().WithLoopback(),

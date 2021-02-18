@@ -103,16 +103,21 @@ type ScheduleAlgorithm interface {
 // the final selected Node, along with the selected intermediate information.
 type ScheduleResult struct {
 	// Name of the scheduler suggest host
+	// 调度器选中的节点名
 	SuggestedHost string
 	// Number of nodes scheduler evaluated on one pod scheduled
 	EvaluatedNodes int
 	// Number of feasible nodes on one pod scheduled
+	// 调度该 Pod 可用的节点数
 	FeasibleNodes int
 }
 
 type genericScheduler struct {
+	// 调度器缓存
 	cache                    internalcache.Cache
+	// 存储外挂的扩展调度器（若注册有的话）
 	extenders                []framework.Extender
+	// 节点信息快照
 	nodeInfoSnapshot         *internalcache.Snapshot
 	// kube-scheduler 通过 percentageOfNodesToScore 机制优化了预选调度过程中的性能. 该机制的原理是: 一旦发现一定数量的
 	// 可用节点（占所有节点的百分比）, 调度器就停止寻找更多的可用节点, 这样可大大提升大型 Kubernetes 集群中调度器的性能.
@@ -134,11 +139,12 @@ func (g *genericScheduler) snapshot() error {
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a FitError error with reasons.
 //
-// Schedule 为指定待调度的 Pod 选择一个合适的节点来运行该 Pod, 如果成功, 则返回节点的名称.
+// Schedule 为指定的待调度的 Pod 选择一个合适的节点来运行该 Pod, 如果成功, 则返回节点的名称.
 func (g *genericScheduler) Schedule(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (result ScheduleResult, err error) {
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
 
+	// 对 Cache 中存储的数据执行一次快照
 	if err := g.snapshot(); err != nil {
 		return result, err
 	}
@@ -262,11 +268,14 @@ func (g *genericScheduler) numFeasibleNodesToFind(numAllNodes int32) (numNodes i
 
 // Filters the nodes to find the ones that fit the pod based on the framework
 // filter plugins and filter extenders.
+//
+// findNodesThatFitPod 通过执行 prefilter 和 filter 以及 extender 的 filter 扩展点的 plugins, 找出适合运行该 Pod 的所有节点
 func (g *genericScheduler) findNodesThatFitPod(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) ([]*v1.Node, framework.NodeToStatusMap, error) {
 	filteredNodesStatuses := make(framework.NodeToStatusMap)
 
 	// Run "prefilter" plugins.
-	// 执行 PreFilter 插件
+	// 执行 PreFilter 插件.
+	// "prefilter" 扩展点用于对 Pod 的请求做预处理。比如 Pod 的缓存，可以在这个扩展点设置
 	s := fwk.RunPreFilterPlugins(ctx, state, pod)
 	if !s.IsSuccess() {
 		if !s.IsUnschedulable() {
@@ -373,7 +382,7 @@ func (g *genericScheduler) findNodesThatPassFilters(ctx context.Context, fwk fra
 
 	// Stops searching for more nodes once the configured number of feasible nodes
 	// are found.
-	// 默认起 16 个 goroutine 并发执行 checkNode 函数来执行所有的预选调度算法. 一旦找到通过 percentageOfNodesToScore 机制
+	// 默认起 16 个 goroutine 并发执行 checkNode 函数来执行所有的 Filter plugins 调度算法. 一旦找到通过 percentageOfNodesToScore 机制
 	// 得到的可用节点数, 就停止搜索更多的可用节点, 内部执行 cancel 函数退出并发操作.
 	parallelize.Until(ctx, len(allNodes), checkNode)
 	processedNodes := int(feasibleNodesLen) + len(statuses)

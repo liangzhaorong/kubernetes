@@ -267,6 +267,8 @@ const (
 	// Include volume count on node to be considered for balanced resource allocation while scheduling.
 	// A node which has closer cpu,memory utilization and volume count is favoured by scheduler
 	// while making decisions.
+	//
+	// 包括要在调度时进行平衡资源分配的节点上的卷数。调度器在决策时会优先考虑 CPU、内存利用率和卷数更近的节点。
 	BalanceAttachedNodeVolumes featuregate.Feature = "BalanceAttachedNodeVolumes"
 
 	// owner: @vladimirvivien

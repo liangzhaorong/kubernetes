@@ -41,7 +41,7 @@ var (
 // "stop" is the channel that would close the background goroutine.
 //
 // New 返回 Cache 的实现.
-// 它会自动启动 goroutine, 该 goroutine 管理 assumed pods 的过期.
+// 它会自动启动 goroutine, 该 goroutine 管理 assumedPods 的过期.
 // "ttl" 是 assumed pod 的生命周期时长.
 // "stop" 是用于关闭后台 goroutine 的 channel.
 func New(ttl time.Duration, stop <-chan struct{}) Cache {
@@ -89,6 +89,7 @@ type schedulerCache struct {
 	//
 	// headNode 指向 "nodes" 中最近更新的 NodeInfo. 它是链表的头部.
 	headNode *nodeInfoListItem
+	// nodeTree 主要负责节点的打散, 用于让 Pod 均衡分配在多个 zone 中的 node 节点上.
 	nodeTree *nodeTree
 	// A map from image name to its imageState.
 	//
@@ -227,12 +228,18 @@ func (cache *schedulerCache) Dump() *Dump {
 // nodeinfo.Node() is guaranteed to be not nil for all the nodes in the snapshot.
 // This function tracks generation number of NodeInfo and updates only the
 // entries of an existing snapshot that have changed after the snapshot was taken.
+//
+// 译文:
+// UpdateSnapshot 是对缓存中的 NodeInfo map 的快照. 在每次调度周期开始时调用该方法.
+// 快照仅包括在调用该函数时未删除的节点. 对于快照中的所有节点, 保证 nodeinfo.Node() 都不为 nil.
+// 该函数跟踪 NodeInfo 的生成数量, 并仅更新拍摄快照后已更改的现有快照的条目.
 func (cache *schedulerCache) UpdateSnapshot(nodeSnapshot *Snapshot) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	balancedVolumesEnabled := utilfeature.DefaultFeatureGate.Enabled(features.BalanceAttachedNodeVolumes)
 
 	// Get the last generation of the snapshot.
+	// 获取当前快照的 generation 值
 	snapshotGeneration := nodeSnapshot.generation
 
 	// NodeInfoList and HavePodsWithAffinityNodeInfoList must be re-created if a node was added
@@ -249,6 +256,8 @@ func (cache *schedulerCache) UpdateSnapshot(nodeSnapshot *Snapshot) error {
 
 	// Start from the head of the NodeInfo doubly linked list and update snapshot
 	// of NodeInfos updated after the last snapshot.
+	//
+	// 遍历双向链表, 更新 snapshot 信息
 	for node := cache.headNode; node != nil; node = node.next {
 		if node.info.Generation <= snapshotGeneration {
 			// all the nodes are updated before the existing snapshot. We are done.
@@ -281,6 +290,7 @@ func (cache *schedulerCache) UpdateSnapshot(nodeSnapshot *Snapshot) error {
 		}
 	}
 	// Update the snapshot generation with the latest NodeInfo generation.
+	// 使用最新的 NodeInfo 的 generation 值来更新快照的 generation
 	if cache.headNode != nil {
 		nodeSnapshot.generation = cache.headNode.info.Generation
 	}
